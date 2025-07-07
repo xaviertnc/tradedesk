@@ -6,6 +6,22 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
+// --- Server-Side Logging ---
+function debug_log($var, $pretext = '', $minDebugLevel = 1, $type = 'DEBUG', $format = 'text') {
+    // For this app, we'll keep it simple and always log.
+    $log_file = __DIR__ . '/debug.log';
+    $timestamp = date('Y-m-d H:i:s');
+    $log_entry = "[$timestamp] [$type] $pretext: ";
+
+    if (is_string($var) || is_numeric($var)) {
+        $log_entry .= $var;
+    } else {
+        $log_entry .= print_r($var, true);
+    }
+
+    file_put_contents($log_file, $log_entry . PHP_EOL, FILE_APPEND);
+}
+
 // --- Response Header ---
 header('Content-Type: application/json');
 
@@ -25,6 +41,7 @@ function getDbConnection() {
     }
 
     if ($is_new_db) {
+        debug_log('Database file not found, creating new database and tables.');
         try {
             // Config Table
             $pdo->exec("CREATE TABLE IF NOT EXISTS config (
@@ -40,7 +57,8 @@ function getDbConnection() {
                 access_token TEXT,
                 token_expiry INTEGER
             )");
-            $pdo->exec("INSERT INTO config (id) SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM config WHERE id = 1)");
+            // **FIX**: Add default value for token on initial creation
+            $pdo->exec("INSERT INTO config (id, api_external_token) SELECT 1, 'YOUR_INTERMEDIATE_TOKEN' WHERE NOT EXISTS (SELECT 1 FROM config WHERE id = 1)");
 
             // Clients Table
             $pdo->exec("CREATE TABLE IF NOT EXISTS clients (
@@ -84,6 +102,18 @@ function getDbConnection() {
             echo json_encode(['success' => false, 'message' => 'Database table creation failed: ' . $e->getMessage()]);
             exit;
         }
+    } else {
+        // **FIX**: Simple migration to add the column if it doesn't exist
+        try {
+            $pdo->query("SELECT api_external_token FROM config LIMIT 1");
+        } catch (PDOException $e) {
+            if (strpos($e->getMessage(), 'no such column') !== false) {
+                debug_log('Column "api_external_token" not found in config table, adding it now.');
+                $pdo->exec("ALTER TABLE config ADD COLUMN api_external_token TEXT DEFAULT 'YOUR_INTERMEDIATE_TOKEN'");
+            } else {
+                throw $e;
+            }
+        }
     }
     return $pdo;
 }
@@ -93,6 +123,7 @@ $action = $_GET['action'] ?? '';
 $db = getDbConnection();
 
 try {
+    debug_log("Processing action: '{$action}'");
     switch ($action) {
         case 'get_config': handleGetConfig($db); break;
         case 'save_config': handleSaveConfig($db); break;
@@ -109,7 +140,7 @@ try {
     }
 } catch (Exception $e) {
     http_response_code(500);
-    error_log("Caught exception in api.php: " . $e->getMessage());
+    debug_log("Caught exception in api.php: " . $e->getMessage(), 'FATAL', 1, 'ERROR');
     echo json_encode(['success' => false, 'message' => 'An internal server error occurred: ' . $e->getMessage()]);
 }
 
@@ -117,6 +148,9 @@ try {
 // --- API Communication Helper ---
 function makeApiRequest($url, $method = 'GET', $payload = null, $headers = []) {
     $ch = curl_init();
+    if ($ch === false) {
+        throw new Exception("Failed to initialize cURL.");
+    }
     $defaultHeaders = ['Content-Type: application/json'];
 
     curl_setopt($ch, CURLOPT_URL, $url);
@@ -330,14 +364,20 @@ function handleFindZarAccount($db) {
 }
 
 function handleSyncBankAccounts($db) {
+    debug_log('Starting bank account sync process...');
     $configStmt = $db->query("SELECT * FROM config WHERE id = 1");
     $config = $configStmt->fetch();
 
-    if (!$config || !$config['api_base_url'] || !$config['auth_url'] || !$config['api_external_token']) {
-        throw new Exception("API settings are not fully configured. Please provide Base URL, Auth URL, and External Token.");
+    $required_keys = ['api_base_url', 'auth_url', 'client_id', 'client_secret', 'username', 'password', 'api_external_token'];
+    foreach($required_keys as $key) {
+        if (empty($config[$key])) {
+             throw new Exception("API setting '$key' is not configured in Settings.");
+        }
     }
+    debug_log('Configuration loaded successfully.');
     
     // Step 1: Get OAuth Token
+    debug_log('Requesting OAuth token...');
     $tokenPayload = http_build_query([
         'client_id' => $config['client_id'],
         'client_secret' => $config['client_secret'],
@@ -348,6 +388,10 @@ function handleSyncBankAccounts($db) {
     ]);
 
     $ch = curl_init($config['auth_url']);
+    if ($ch === false) {
+        throw new Exception("Failed to initialize cURL for Auth URL. Is the URL valid in Settings?");
+    }
+
     curl_setopt_array($ch, [
         CURLOPT_POST => true,
         CURLOPT_POSTFIELDS => $tokenPayload,
@@ -366,7 +410,6 @@ function handleSyncBankAccounts($db) {
     
     $tokenData = json_decode($tokenResponse, true);
     
-    // **FIX**: Robust check for valid token response
     if ($tokenHttpCode >= 400 || !is_array($tokenData) || !isset($tokenData['access_token'])) {
         $errorMsg = 'Failed to obtain access token.';
         if (is_array($tokenData) && isset($tokenData['error_description'])) {
@@ -374,17 +417,21 @@ function handleSyncBankAccounts($db) {
         } elseif (!is_array($tokenData) && !empty($tokenResponse)) {
             $errorMsg = "Invalid response from auth server. Check credentials and external token.";
         }
+        debug_log("Auth API Error (HTTP $tokenHttpCode): $errorMsg", 'AUTH_FAILURE', 1, 'ERROR');
         throw new Exception("Auth API Error (HTTP $tokenHttpCode): " . $errorMsg);
     }
     $accessToken = $tokenData['access_token'];
+    debug_log('Successfully obtained access token.');
 
     // Step 2: Call Bulk Balance Enquiry API
+    debug_log('Starting bulk balance enquiry...');
     $allAccounts = [];
     $page = 0;
     $totalPages = 1;
     $balanceUrl = rtrim($config['api_base_url'], '/') . '/account/api/v1/bulk-balance';
 
     do {
+        debug_log("Fetching page {$page} of balances...");
         $balancePayload = [
             'header' => ['userId' => $config['username']],
             'page' => $page,
@@ -394,16 +441,18 @@ function handleSyncBankAccounts($db) {
         $balanceData = makeApiRequest($balanceUrl, 'POST', $balancePayload, $apiHeaders);
 
         if (isset($balanceData['payload']['content'])) {
+            $count = count($balanceData['payload']['content']);
+            debug_log("Page {$page} contained {$count} accounts.");
             $allAccounts = array_merge($allAccounts, $balanceData['payload']['content']);
             $totalPages = $balanceData['payload']['page']['totalPages'] ?? $totalPages;
         } else {
-            // If content is missing on first page, something is wrong.
             if ($page === 0) {
                 throw new Exception("API response missing 'content' payload.");
             }
         }
         $page++;
     } while ($page < $totalPages);
+    debug_log('Finished fetching all pages from bulk balance API. Total accounts fetched: ' . count($allAccounts));
 
     // Step 3: Filter and save to DB
     $syncedCount = 0;
@@ -429,6 +478,7 @@ function handleSyncBankAccounts($db) {
         }
         $db->commit();
     }
+    debug_log("Sync complete. Saved {$syncedCount} 'FX TRADE ACCOUNT' type accounts to the database.");
 
     echo json_encode(['success' => true, 'synced_count' => $syncedCount]);
 }
