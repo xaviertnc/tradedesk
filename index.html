@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FX Batch Trader</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .tab-active { border-bottom: 2px solid #3b82f6; color: #3b82f6; }
+        .loader { 
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #3498db;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-900">FX Batch Trader</h1>
+            <p class="text-gray-600">A test app for managing and executing batch FX trades via API.</p>
+        </header>
+
+        <!-- Tabs -->
+        <div class="mb-6 border-b border-gray-200">
+            <nav class="flex space-x-8" aria-label="Tabs">
+                <button onclick="showTab('settings')" class="tab-button tab-active" data-tab="settings">Settings</button>
+                <button onclick="showTab('clients')" class="tab-button" data-tab="clients">Clients</button>
+                <button onclick="showTab('accounts')" class="tab-button" data-tab="accounts">Bank Accounts</button>
+                <button onclick="showTab('trade')" class="tab-button" data-tab="trade">Trade</button>
+                <button onclick="showTab('history')" class="tab-button" data-tab="history">History</button>
+            </nav>
+        </div>
+
+        <!-- Main Content -->
+        <main>
+            <!-- Settings Tab -->
+            <div id="settings" class="tab-content">
+                <div class="bg-white p-6 rounded-lg shadow-sm max-w-2xl">
+                    <h2 class="text-xl font-semibold mb-4">API Configuration</h2>
+                    <form id="settings-form">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="api_base_url" class="block text-sm font-medium text-gray-700">API Base URL</label>
+                                <input type="text" id="api_base_url" name="api_base_url" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="https://toc-gw-qa.forex...">
+                            </div>
+                            <div>
+                                <label for="auth_url" class="block text-sm font-medium text-gray-700">Auth URL</label>
+                                <input type="text" id="auth_url" name="auth_url" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="https://capitecexternal.ciamlogin.com/...">
+                            </div>
+                             <div>
+                                <label for="client_id" class="block text-sm font-medium text-gray-700">Client ID</label>
+                                <input type="text" id="client_id" name="client_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            </div>
+                             <div>
+                                <label for="client_secret" class="block text-sm font-medium text-gray-700">Client Secret</label>
+                                <input type="password" id="client_secret" name="client_secret" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            </div>
+                             <div>
+                                <label for="username" class="block text-sm font-medium text-gray-700">API Username</label>
+                                <input type="text" id="username" name="username" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            </div>
+                             <div>
+                                <label for="password" class="block text-sm font-medium text-gray-700">API Password</label>
+                                <input type="password" id="password" name="password" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            </div>
+                             <div class="md:col-span-2">
+                                <label for="api_external_token" class="block text-sm font-medium text-gray-700">API External Token (for Auth)</label>
+                                <input type="password" id="api_external_token" name="api_external_token" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Initial token for getting access token">
+                            </div>
+                             <div class="md:col-span-2">
+                                <label for="otc_rate" class="block text-sm font-medium text-gray-700">Master OTC Rate (USD/ZAR)</label>
+                                <input type="number" step="0.0001" id="otc_rate" name="otc_rate" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="e.g., 18.50">
+                            </div>
+                        </div>
+                        <div class="mt-6">
+                            <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Save Settings</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Clients Tab -->
+            <div id="clients" class="tab-content hidden">
+                <div class="bg-white p-6 rounded-lg shadow-sm">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold">Client Management</h2>
+                        <div>
+                            <button id="sync-accounts-btn" class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 mr-2">
+                                <span id="sync-btn-text">Sync Bank Accounts</span>
+                                <div id="sync-loader" class="loader hidden"></div>
+                            </button>
+                            <input type="file" id="csv-file" accept=".csv" class="hidden">
+                            <button onclick="document.getElementById('csv-file').click()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 mr-2">Import from CSV</button>
+                            <button id="add-client-btn" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">Add New Client</button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CIF Number</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ZAR Account</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">USD Account</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Spread (%)</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="client-list" class="bg-white divide-y divide-gray-200">
+                                <!-- Client rows will be inserted here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bank Accounts Tab -->
+            <div id="accounts" class="tab-content hidden">
+                 <div class="bg-white p-6 rounded-lg shadow-sm">
+                    <h2 class="text-xl font-semibold mb-4">Synced Bank Accounts</h2>
+                     <p class="text-sm text-gray-600 mb-4">This table shows all 'FX TRADE ACCOUNT' type accounts synced from the bank API.</p>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer Name</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer CIF</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account No.</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Currency</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Balance</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bank-account-list" class="bg-white divide-y divide-gray-200">
+                                <!-- Account rows will be inserted here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trade Tab -->
+            <div id="trade" class="tab-content hidden">
+                <div class="bg-white p-6 rounded-lg shadow-sm">
+                    <h2 class="text-xl font-semibold mb-4">Execute Batch Trade</h2>
+                    <p class="text-gray-600">This feature is coming soon. First, configure your settings and import your clients.</p>
+                </div>
+            </div>
+
+            <!-- History Tab -->
+            <div id="history" class="tab-content hidden">
+                 <div class="bg-white p-6 rounded-lg shadow-sm">
+                    <h2 class="text-xl font-semibold mb-4">Trade History</h2>
+                    <p class="text-gray-600">This feature is coming soon.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-5 right-5 bg-green-500 text-white py-2 px-4 rounded-lg shadow-md opacity-0 transition-opacity duration-300">
+        <p id="toast-message"></p>
+    </div>
+
+    <!-- Client Modal -->
+    <div id="client-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden">
+        <div class="relative top-20 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white">
+            <div class="mt-3 text-center">
+                <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">Add New Client</h3>
+                <div class="mt-2 px-7 py-3">
+                    <form id="client-form">
+                        <input type="hidden" id="client-id" name="id">
+                        <input type="text" id="client-name" placeholder="Client Name" class="mb-3 mt-1 block w-full rounded-md border-gray-300 shadow-sm" required>
+                        <input type="text" id="client-cif" placeholder="CIF Number" class="mb-3 mt-1 block w-full rounded-md border-gray-300 shadow-sm" required>
+                        <input type="text" id="client-zar" placeholder="ZAR Account" class="mb-3 mt-1 block w-full rounded-md border-gray-300 shadow-sm" required>
+                        <input type="text" id="client-usd" placeholder="USD Account" class="mb-3 mt-1 block w-full rounded-md border-gray-300 shadow-sm" required>
+                        <input type="number" step="0.01" id="client-spread" placeholder="Spread (%)" class="mb-3 mt-1 block w-full rounded-md border-gray-300 shadow-sm" required>
+                    </form>
+                </div>
+                <div class="items-center px-4 py-3">
+                    <button id="save-client-btn" class="px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                        Save Client
+                    </button>
+                    <button id="cancel-modal-btn" class="mt-2 px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md w-full shadow-sm hover:bg-gray-300 focus:outline-none">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        const API_URL = './api.php';
+
+        // --- Toast Notification Handler ---
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toast-message');
+            toastMessage.textContent = message;
+            toast.className = `fixed top-5 right-5 text-white py-2 px-4 rounded-lg shadow-md transition-opacity duration-300 ${isError ? 'bg-red-500' : 'bg-green-500'}`;
+            toast.classList.remove('opacity-0');
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+            }, 5000);
+        }
+
+        // --- Tab Navigation ---
+        function showTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
+            document.getElementById(tabName).classList.remove('hidden');
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('tab-active');
+                if (button.dataset.tab === tabName) {
+                    button.classList.add('tab-active');
+                }
+            });
+             if (tabName === 'clients') {
+                loadClients();
+            }
+             if (tabName === 'accounts') {
+                loadBankAccounts();
+            }
+        }
+
+        // --- Settings Management ---
+        async function loadSettings() {
+            try {
+                const response = await fetch(`${API_URL}?action=get_config`);
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ message: response.statusText }));
+                    throw new Error(errorData.message || 'Network response was not ok');
+                }
+                const config = await response.json();
+                if (config) {
+                    Object.keys(config).forEach(key => {
+                        const input = document.getElementById(key);
+                        if (input) input.value = config[key];
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading settings:', error);
+                showToast(`Could not load settings: ${error.message}`, true);
+            }
+        }
+
+        document.getElementById('settings-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            try {
+                const response = await fetch(`${API_URL}?action=save_config`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showToast('Settings saved successfully!');
+                } else {
+                    throw new Error(result.message || 'Failed to save settings');
+                }
+            } catch (error) {
+                console.error('Error saving settings:', error);
+                showToast(error.message, true);
+            }
+        });
+        
+        // --- Client Management ---
+        const clientModal = document.getElementById('client-modal');
+        const addClientBtn = document.getElementById('add-client-btn');
+        const cancelModalBtn = document.getElementById('cancel-modal-btn');
+        const clientForm = document.getElementById('client-form');
+        const saveClientBtn = document.getElementById('save-client-btn');
+
+        function openClientModal(client = null) {
+            clientForm.reset();
+            const modalTitle = document.getElementById('modal-title');
+            if (client) {
+                modalTitle.textContent = 'Edit Client';
+                document.getElementById('client-id').value = client.id;
+                document.getElementById('client-name').value = client.name;
+                document.getElementById('client-cif').value = client.cif_number;
+                document.getElementById('client-zar').value = client.zar_account;
+                document.getElementById('client-usd').value = client.usd_account;
+                document.getElementById('client-spread').value = client.spread;
+            } else {
+                modalTitle.textContent = 'Add New Client';
+            }
+            clientModal.classList.remove('hidden');
+        }
+
+        function closeClientModal() {
+            clientModal.classList.add('hidden');
+        }
+
+        addClientBtn.addEventListener('click', () => openClientModal());
+        cancelModalBtn.addEventListener('click', closeClientModal);
+
+        saveClientBtn.addEventListener('click', async () => {
+            const formData = new FormData(clientForm);
+            try {
+                const response = await fetch(`${API_URL}?action=save_client`, {
+                    method: 'POST',
+                    body: formData,
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showToast('Client saved successfully!');
+                    closeClientModal();
+                    loadClients();
+                } else {
+                    throw new Error(result.message || 'Failed to save client');
+                }
+            } catch (error) {
+                console.error('Error saving client:', error);
+                showToast(error.message, true);
+            }
+        });
+
+        async function loadClients() {
+            try {
+                const response = await fetch(`${API_URL}?action=get_clients`);
+                const clients = await response.json();
+                const clientList = document.getElementById('client-list');
+                clientList.innerHTML = ''; // Clear existing list
+                if (clients.length === 0) {
+                    clientList.innerHTML = `<tr><td colspan="6" class="text-center py-4">No clients found. Add one or import from CSV.</td></tr>`;
+                } else {
+                    clients.forEach(client => {
+                        const row = `
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap">${client.name}</td>
+                                <td class="px-6 py-4 whitespace-nowrap">${client.cif_number}</td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex items-center">
+                                        <span id="zar-account-text-${client.id}">${client.zar_account || 'N/A'}</span>
+                                        <button id="find-btn-${client.id}" onclick="findZarAccount(${client.id}, '${client.cif_number}')" class="ml-3 text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-1 px-2 rounded">
+                                            Find
+                                        </button>
+                                        <div id="find-loader-${client.id}" class="loader ml-3 hidden"></div>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">${client.usd_account || 'N/A'}</td>
+                                <td class="px-6 py-4 whitespace-nowrap">${client.spread}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <button onclick='editClient(${JSON.stringify(client)})' class="text-indigo-600 hover:text-indigo-900">Edit</button>
+                                    <button onclick="deleteClient(${client.id})" class="text-red-600 hover:text-red-900 ml-4">Delete</button>
+                                </td>
+                            </tr>
+                        `;
+                        clientList.insertAdjacentHTML('beforeend', row);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading clients:', error);
+                showToast('Could not load clients.', true);
+            }
+        }
+        
+        function editClient(client) {
+            openClientModal(client);
+        }
+
+        async function deleteClient(id) {
+            if (!confirm('Are you sure you want to delete this client?')) return;
+
+            try {
+                const response = await fetch(`${API_URL}?action=delete_client&id=${id}`, { method: 'DELETE' });
+                const result = await response.json();
+                if (result.success) {
+                    showToast('Client deleted successfully!');
+                    loadClients();
+                } else {
+                    throw new Error(result.message || 'Failed to delete client');
+                }
+            } catch (error) {
+                console.error('Error deleting client:', error);
+                showToast(error.message, true);
+            }
+        }
+        
+        // --- CSV Import ---
+        document.getElementById('csv-file').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('csv', file);
+
+            try {
+                const response = await fetch(`${API_URL}?action=import_clients`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                 if (result.success) {
+                    showToast(`${result.imported_count} clients imported successfully! Please review and add any missing account numbers.`);
+                    loadClients();
+                } else {
+                    throw new Error(result.message || 'Failed to import CSV.');
+                }
+            } catch (error) {
+                console.error('Error importing CSV:', error);
+                showToast(error.message, true);
+            }
+             // Reset file input to allow re-uploading the same file
+            e.target.value = '';
+        });
+
+        // --- Find ZAR Account ---
+        async function findZarAccount(clientId, cifNumber) {
+            const findButton = document.getElementById(`find-btn-${clientId}`);
+            const loader = document.getElementById(`find-loader-${clientId}`);
+            
+            findButton.classList.add('hidden');
+            loader.classList.remove('hidden');
+
+            try {
+                const response = await fetch(`${API_URL}?action=find_zar_account&cif=${cifNumber}&id=${clientId}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    showToast(`Found account: ${result.accountNumber}`);
+                    document.getElementById(`zar-account-text-${clientId}`).textContent = result.accountNumber;
+                } else {
+                    throw new Error(result.message || 'Could not find an active ZAR account.');
+                }
+            } catch (error) {
+                 console.error('Error finding account:', error);
+                 showToast(error.message, true);
+            } finally {
+                findButton.classList.remove('hidden');
+                loader.classList.add('hidden');
+            }
+        }
+
+        // --- Bank Account Sync & Display ---
+        document.getElementById('sync-accounts-btn').addEventListener('click', async () => {
+            const syncBtnText = document.getElementById('sync-btn-text');
+            const syncLoader = document.getElementById('sync-loader');
+
+            syncBtnText.classList.add('hidden');
+            syncLoader.classList.remove('hidden');
+
+            try {
+                const response = await fetch(`${API_URL}?action=sync_bank_accounts`, { method: 'POST' });
+                const result = await response.json();
+                if (result.success) {
+                    showToast(`Successfully synced ${result.synced_count} trading accounts!`);
+                    if (!document.getElementById('accounts').classList.contains('hidden')) {
+                        loadBankAccounts();
+                    }
+                } else {
+                    throw new Error(result.message || 'Failed to sync accounts.');
+                }
+            } catch (error) {
+                console.error('Error syncing accounts:', error);
+                showToast(error.message, true);
+            } finally {
+                syncBtnText.classList.remove('hidden');
+                syncLoader.classList.add('hidden');
+            }
+        });
+
+        async function loadBankAccounts() {
+             try {
+                const response = await fetch(`${API_URL}?action=get_bank_accounts`);
+                const accounts = await response.json();
+                const accountList = document.getElementById('bank-account-list');
+                accountList.innerHTML = ''; // Clear existing list
+                if (accounts.length === 0) {
+                    accountList.innerHTML = `<tr><td colspan="6" class="text-center py-4">No bank accounts found. Click 'Sync Bank Accounts' in the Clients tab.</td></tr>`;
+                } else {
+                    accounts.forEach(acc => {
+                        const row = `
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap">${acc.cus_name}</td>
+                                <td class="px-6 py-4 whitespace-nowrap">${acc.cus_cif_no}</td>
+                                <td class="px-6 py-4 whitespace-nowrap">${acc.account_no}</td>
+                                <td class="px-6 py-4 whitespace-nowrap">${acc.account_currency}</td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${acc.account_status === 'OPEN' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                                        ${acc.account_status}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right">${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: acc.account_currency }).format(acc.curr_account_balance)}</td>
+                            </tr>
+                        `;
+                        accountList.insertAdjacentHTML('beforeend', row);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading bank accounts:', error);
+                showToast('Could not load bank accounts.', true);
+            }
+        }
+
+
+        // --- Initial Load ---
+        document.addEventListener('DOMContentLoaded', () => {
+            loadSettings();
+        });
+
+    </script>
+</body>
+</html>

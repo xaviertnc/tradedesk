@@ -1,0 +1,5 @@
+ID,Status,Client,Client CIF,Bank (Just for reference),Sell Amount ZAR,Deal Type,External Ref,Fix Rate?,Fixed Rate,Fixed Spread,In/out Type,Channel,Client UID,Deal Reference,USD Bought,Client Rate,Spread,Spread ZAR Amount,Value Date
+1751875718303,Processed,Pieter Mechiel Mans,18369324,,200000,same_day,SDA,No,,358,swift,VALR USDC,17f72725,D-2670359,11217.8,17.8288,358,401.6,2025-07-07
+1751875721176,Processed,Mattheus Francois Retief,14725649,,390000,same_day,FIA,No,,358,swift,VALR USDC,ad47b6f2,D-2670358,21878.16,17.826,358,783.24,2025-07-07
+1751875721359,Processed,Kerrin Leigh Knowler,12702293,,700000,same_day,FIA,No,,358,swift,VALR USDC,2b6887e4,D-2670360,39268.48,17.826,358,1405.81,2025-07-07
+1751875721687,Processed,Douglas Ewing,12671983,,400000,same_day,FIA,No,,358,swift,VALR USDC,4b5ac452,D-2670362,22440.02,17.8253,358,803.35,2025-07-07
