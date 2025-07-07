@@ -28,7 +28,6 @@ header('Content-Type: application/json');
 // --- Database Setup ---
 function getDbConnection() {
     $db_file = 'fx_trader.db';
-    $is_new_db = !file_exists($db_file);
     
     try {
         $pdo = new PDO('sqlite:' . $db_file);
@@ -40,81 +39,78 @@ function getDbConnection() {
         exit;
     }
 
-    if ($is_new_db) {
-        debug_log('Database file not found, creating new database and tables.');
-        try {
-            // Config Table
-            $pdo->exec("CREATE TABLE IF NOT EXISTS config (
-                id INTEGER PRIMARY KEY,
-                api_base_url TEXT,
-                auth_url TEXT,
-                client_id TEXT,
-                client_secret TEXT,
-                username TEXT,
-                password TEXT,
-                api_external_token TEXT,
-                otc_rate REAL,
-                access_token TEXT,
-                token_expiry INTEGER
-            )");
-            // **FIX**: Add default value for token on initial creation
-            $pdo->exec("INSERT INTO config (id, api_external_token) SELECT 1, 'YOUR_INTERMEDIATE_TOKEN' WHERE NOT EXISTS (SELECT 1 FROM config WHERE id = 1)");
+    // **FIX**: Always run CREATE TABLE IF NOT EXISTS to ensure all tables are present.
+    // This is idempotent and safely handles both new and old database files.
+    debug_log('Ensuring all database tables exist...');
+    
+    // Config Table
+    $pdo->exec("CREATE TABLE IF NOT EXISTS config (
+        id INTEGER PRIMARY KEY,
+        api_base_url TEXT,
+        auth_url TEXT,
+        client_id TEXT,
+        client_secret TEXT,
+        username TEXT,
+        password TEXT,
+        api_external_token TEXT,
+        otc_rate REAL,
+        access_token TEXT,
+        token_expiry INTEGER
+    )");
+    // Ensure the default config row exists. INSERT OR IGNORE does nothing if the row with id=1 already exists.
+    $pdo->exec("INSERT OR IGNORE INTO config (id, api_external_token) VALUES (1, 'YOUR_INTERMEDIATE_TOKEN')");
 
-            // Clients Table
-            $pdo->exec("CREATE TABLE IF NOT EXISTS clients (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                cif_number TEXT NOT NULL UNIQUE,
-                zar_account TEXT,
-                usd_account TEXT,
-                spread REAL NOT NULL
-            )");
+    // Clients Table
+    $pdo->exec("CREATE TABLE IF NOT EXISTS clients (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        cif_number TEXT NOT NULL UNIQUE,
+        zar_account TEXT,
+        usd_account TEXT,
+        spread REAL NOT NULL
+    )");
 
-            // Bank Accounts Table
-            $pdo->exec("CREATE TABLE IF NOT EXISTS bank_accounts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                cus_cif_no TEXT NOT NULL,
-                cus_name TEXT,
-                account_no TEXT NOT NULL,
-                account_type TEXT,
-                account_status TEXT,
-                account_currency TEXT,
-                curr_account_balance REAL,
-                UNIQUE(account_no)
-            )");
+    // Bank Accounts Table
+    $pdo->exec("CREATE TABLE IF NOT EXISTS bank_accounts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cus_cif_no TEXT NOT NULL,
+        cus_name TEXT,
+        account_no TEXT NOT NULL,
+        account_type TEXT,
+        account_status TEXT,
+        account_currency TEXT,
+        curr_account_balance REAL,
+        UNIQUE(account_no)
+    )");
 
-            // Trades Table
-            $pdo->exec("CREATE TABLE IF NOT EXISTS trades (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                client_id INTEGER,
-                status TEXT,
-                status_message TEXT,
-                bank_quote_id TEXT,
-                bank_rate REAL,
-                client_rate REAL,
-                amount_zar REAL,
-                bank_trxn_id TEXT,
-                created_at TEXT,
-                FOREIGN KEY (client_id) REFERENCES clients(id)
-            )");
-        } catch (PDOException $e) {
-            http_response_code(500);
-            echo json_encode(['success' => false, 'message' => 'Database table creation failed: ' . $e->getMessage()]);
-            exit;
-        }
-    } else {
-        // **FIX**: Simple migration to add the column if it doesn't exist
-        try {
-            $pdo->query("SELECT api_external_token FROM config LIMIT 1");
-        } catch (PDOException $e) {
-            if (strpos($e->getMessage(), 'no such column') !== false) {
-                debug_log('Column "api_external_token" not found in config table, adding it now.');
-                $pdo->exec("ALTER TABLE config ADD COLUMN api_external_token TEXT DEFAULT 'YOUR_INTERMEDIATE_TOKEN'");
-            } else {
-                throw $e;
-            }
+    // Trades Table
+    $pdo->exec("CREATE TABLE IF NOT EXISTS trades (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id INTEGER,
+        status TEXT,
+        status_message TEXT,
+        bank_quote_id TEXT,
+        bank_rate REAL,
+        client_rate REAL,
+        amount_zar REAL,
+        bank_trxn_id TEXT,
+        created_at TEXT,
+        FOREIGN KEY (client_id) REFERENCES clients(id)
+    )");
+    
+    // This migration logic is still useful for older DBs that have the config table but not the new column.
+    try {
+        $pdo->query("SELECT api_external_token FROM config LIMIT 1");
+    } catch (PDOException $e) {
+        if (strpos($e->getMessage(), 'no such column') !== false) {
+            debug_log('Column "api_external_token" not found in config table, adding it now.');
+            $pdo->exec("ALTER TABLE config ADD COLUMN api_external_token TEXT DEFAULT 'YOUR_INTERMEDIATE_TOKEN'");
+        } else {
+            throw $e;
         }
     }
+    
+    debug_log('Database schema verified.');
     return $pdo;
 }
 
@@ -153,17 +149,23 @@ function makeApiRequest($url, $method = 'GET', $payload = null, $headers = []) {
     }
     $defaultHeaders = ['Content-Type: application/json'];
 
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 60);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, array_merge($defaultHeaders, $headers));
+    $options = [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 60,
+        CURLOPT_HTTPHEADER => array_merge($defaultHeaders, $headers),
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => false,
+    ];
 
     if ($method === 'POST') {
-        curl_setopt($ch, CURLOPT_POST, true);
+        $options[CURLOPT_POST] = true;
         if ($payload) {
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+            $options[CURLOPT_POSTFIELDS] = json_encode($payload);
         }
     }
+    
+    curl_setopt_array($ch, $options);
     
     $response = curl_exec($ch);
     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -399,7 +401,9 @@ function handleSyncBankAccounts($db) {
         CURLOPT_HTTPHEADER => [
             'Content-Type: application/x-www-form-urlencoded',
             'Authorization: Bearer ' . $config['api_external_token']
-        ]
+        ],
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => false,
     ]);
     $tokenResponse = curl_exec($ch);
     $tokenHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
