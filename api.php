@@ -39,14 +39,13 @@ function getDbConnection() {
         exit;
     }
 
-    // **FIX**: Always run CREATE TABLE IF NOT EXISTS to ensure all tables are present.
-    // This is idempotent and safely handles both new and old database files.
     debug_log('Ensuring all database tables exist...');
     
     // Config Table
     $pdo->exec("CREATE TABLE IF NOT EXISTS config (
         id INTEGER PRIMARY KEY,
-        api_base_url TEXT,
+        api_trading_url TEXT,
+        api_account_url TEXT,
         auth_url TEXT,
         client_id TEXT,
         client_secret TEXT,
@@ -57,7 +56,6 @@ function getDbConnection() {
         access_token TEXT,
         token_expiry INTEGER
     )");
-    // Ensure the default config row exists. INSERT OR IGNORE does nothing if the row with id=1 already exists.
     $pdo->exec("INSERT OR IGNORE INTO config (id, api_external_token) VALUES (1, 'YOUR_INTERMEDIATE_TOKEN')");
 
     // Clients Table
@@ -98,15 +96,23 @@ function getDbConnection() {
         FOREIGN KEY (client_id) REFERENCES clients(id)
     )");
     
-    // This migration logic is still useful for older DBs that have the config table but not the new column.
-    try {
-        $pdo->query("SELECT api_external_token FROM config LIMIT 1");
-    } catch (PDOException $e) {
-        if (strpos($e->getMessage(), 'no such column') !== false) {
-            debug_log('Column "api_external_token" not found in config table, adding it now.');
-            $pdo->exec("ALTER TABLE config ADD COLUMN api_external_token TEXT DEFAULT 'YOUR_INTERMEDIATE_TOKEN'");
-        } else {
-            throw $e;
+    // Migration logic for older DBs
+    $migrations = [
+        'api_external_token' => "ALTER TABLE config ADD COLUMN api_external_token TEXT DEFAULT 'YOUR_INTERMEDIATE_TOKEN'",
+        'api_trading_url' => "ALTER TABLE config ADD COLUMN api_trading_url TEXT",
+        'api_account_url' => "ALTER TABLE config ADD COLUMN api_account_url TEXT"
+    ];
+
+    foreach ($migrations as $column => $alter_statement) {
+        try {
+            $pdo->query("SELECT $column FROM config LIMIT 1");
+        } catch (PDOException $e) {
+            if (strpos($e->getMessage(), 'no such column') !== false) {
+                debug_log("Column '{$column}' not found in config table, adding it now.");
+                $pdo->exec($alter_statement);
+            } else {
+                throw $e;
+            }
         }
     }
     
@@ -148,12 +154,30 @@ function makeApiRequest($url, $method = 'GET', $payload = null, $headers = []) {
         throw new Exception("Failed to initialize cURL.");
     }
     $defaultHeaders = ['Content-Type: application/json'];
+    $allHeaders = array_merge($defaultHeaders, $headers);
+
+    $loggableHeaders = [];
+    foreach ($allHeaders as $header) {
+        if (stripos($header, 'Authorization:') === 0) {
+            $parts = explode(' ', $header);
+            $loggableHeaders[] = $parts[0] . ' Bearer ' . substr($parts[2] ?? '', 0, 8) . '...';
+        } else {
+            $loggableHeaders[] = $header;
+        }
+    }
+    debug_log([
+        'URL' => $url,
+        'Method' => $method,
+        'Headers' => $loggableHeaders,
+        'Payload' => $payload
+    ], '--- Sending API Request ---');
+    
 
     $options = [
         CURLOPT_URL => $url,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT => 60,
-        CURLOPT_HTTPHEADER => array_merge($defaultHeaders, $headers),
+        CURLOPT_HTTPHEADER => $allHeaders,
         CURLOPT_SSL_VERIFYPEER => false,
         CURLOPT_SSL_VERIFYHOST => false,
     ];
@@ -172,6 +196,13 @@ function makeApiRequest($url, $method = 'GET', $payload = null, $headers = []) {
     $error = curl_error($ch);
     curl_close($ch);
 
+    debug_log([
+        'URL' => $url,
+        'HTTP Code' => $http_code,
+        'cURL Error' => $error ?: 'None',
+        'Raw Response' => $response
+    ], '--- Received API Response ---');
+
     if ($error) {
         throw new Exception("cURL Error: " . $error);
     }
@@ -180,7 +211,7 @@ function makeApiRequest($url, $method = 'GET', $payload = null, $headers = []) {
 
     if ($http_code >= 400) {
         $errorMessage = $responseData['result']['resultMsg'] ?? $responseData['error_description'] ?? 'API request failed.';
-        throw new Exception("API Error (HTTP $http_code): " . $errorMessage);
+        throw new Exception("API Error on '{$url}' (HTTP {$http_code}): " . $errorMessage);
     }
 
     return $responseData;
@@ -195,7 +226,7 @@ function handleGetConfig($db) {
 }
 
 function handleSaveConfig($db) {
-    $fields = ['api_base_url', 'auth_url', 'client_id', 'client_secret', 'username', 'password', 'api_external_token', 'otc_rate'];
+    $fields = ['api_trading_url', 'api_account_url', 'auth_url', 'client_id', 'client_secret', 'username', 'password', 'api_external_token', 'otc_rate'];
     $updates = [];
     $params = [];
     foreach ($fields as $field) {
@@ -370,7 +401,7 @@ function handleSyncBankAccounts($db) {
     $configStmt = $db->query("SELECT * FROM config WHERE id = 1");
     $config = $configStmt->fetch();
 
-    $required_keys = ['api_base_url', 'auth_url', 'client_id', 'client_secret', 'username', 'password', 'api_external_token'];
+    $required_keys = ['api_account_url', 'auth_url', 'client_id', 'client_secret', 'username', 'password', 'api_external_token'];
     foreach($required_keys as $key) {
         if (empty($config[$key])) {
              throw new Exception("API setting '$key' is not configured in Settings.");
@@ -394,14 +425,22 @@ function handleSyncBankAccounts($db) {
         throw new Exception("Failed to initialize cURL for Auth URL. Is the URL valid in Settings?");
     }
 
+    $authHeaders = [
+        'Content-Type: application/x-www-form-urlencoded',
+        'Authorization: Bearer ' . $config['api_external_token']
+    ];
+    debug_log([
+        'URL' => $config['auth_url'],
+        'Method' => 'POST',
+        'Headers' => ['Authorization: Bearer ' . substr($config['api_external_token'], 0, 8) . '...'],
+        'Payload' => $tokenPayload
+    ], '--- Sending Auth Request ---');
+
     curl_setopt_array($ch, [
         CURLOPT_POST => true,
         CURLOPT_POSTFIELDS => $tokenPayload,
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'Content-Type: application/x-www-form-urlencoded',
-            'Authorization: Bearer ' . $config['api_external_token']
-        ],
+        CURLOPT_HTTPHEADER => $authHeaders,
         CURLOPT_SSL_VERIFYPEER => false,
         CURLOPT_SSL_VERIFYHOST => false,
     ]);
@@ -409,6 +448,14 @@ function handleSyncBankAccounts($db) {
     $tokenHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $tokenError = curl_error($ch);
     curl_close($ch);
+
+    debug_log([
+        'URL' => $config['auth_url'],
+        'HTTP Code' => $tokenHttpCode,
+        'cURL Error' => $tokenError ?: 'None',
+        'Raw Response' => $tokenResponse
+    ], '--- Received Auth Response ---');
+
 
     if ($tokenError) throw new Exception("Auth cURL Error: " . $tokenError);
     
@@ -421,8 +468,7 @@ function handleSyncBankAccounts($db) {
         } elseif (!is_array($tokenData) && !empty($tokenResponse)) {
             $errorMsg = "Invalid response from auth server. Check credentials and external token.";
         }
-        debug_log("Auth API Error (HTTP $tokenHttpCode): $errorMsg", 'AUTH_FAILURE', 1, 'ERROR');
-        throw new Exception("Auth API Error (HTTP $tokenHttpCode): " . $errorMsg);
+        throw new Exception("Auth API Error on '{$config['auth_url']}' (HTTP $tokenHttpCode): " . $errorMsg);
     }
     $accessToken = $tokenData['access_token'];
     debug_log('Successfully obtained access token.');
@@ -432,10 +478,9 @@ function handleSyncBankAccounts($db) {
     $allAccounts = [];
     $page = 0;
     $totalPages = 1;
-    $balanceUrl = rtrim($config['api_base_url'], '/') . '/account/api/v1/bulk-balance';
+    $balanceUrl = rtrim($config['api_account_url'], '/') . '/bulk-balance';
 
     do {
-        debug_log("Fetching page {$page} of balances...");
         $balancePayload = [
             'header' => ['userId' => $config['username']],
             'page' => $page,

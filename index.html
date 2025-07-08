@@ -44,44 +44,67 @@
         <main>
             <!-- Settings Tab -->
             <div id="settings" class="tab-content">
-                <div class="bg-white p-6 rounded-lg shadow-sm max-w-2xl">
-                    <h2 class="text-xl font-semibold mb-4">API Configuration</h2>
-                    <form id="settings-form">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label for="api_base_url" class="block text-sm font-medium text-gray-700">API Base URL</label>
-                                <input type="text" id="api_base_url" name="api_base_url" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="https://toc-gw-qa.forex...">
+                <!-- **FIX**: Increased max-width for better desktop view -->
+                <div class="bg-white p-8 rounded-lg shadow-sm max-w-4xl">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-6">API Configuration</h2>
+                    <form id="settings-form" class="space-y-8">
+                        
+                        <!-- API Endpoints Section -->
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-800 border-b pb-3 mb-4">API Endpoints</h3>
+                            <div class="space-y-6">
+                                <div>
+                                    <label for="auth_url" class="block text-sm font-medium text-gray-600 mb-1">Auth URL</label>
+                                    <input type="text" id="auth_url" name="auth_url" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="https://.../oauth2/v2.0/token">
+                                </div>
+                                <div>
+                                    <label for="api_trading_url" class="block text-sm font-medium text-gray-600 mb-1">Trading API Base URL</label>
+                                    <input type="text" id="api_trading_url" name="api_trading_url" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="https://.../trading-channel-service/api/v1">
+                                </div>
+                                 <div>
+                                    <label for="api_account_url" class="block text-sm font-medium text-gray-600 mb-1">Account API Base URL</label>
+                                    <input type="text" id="api_account_url" name="api_account_url" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="https://.../account/api/v1">
+                                </div>
                             </div>
-                            <div>
-                                <label for="auth_url" class="block text-sm font-medium text-gray-700">Auth URL</label>
-                                <input type="text" id="auth_url" name="auth_url" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="https://capitecexternal.ciamlogin.com/...">
+                        </div>
+
+                        <!-- Authentication Credentials Section -->
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-800 border-b pb-3 mb-4">Authentication Credentials</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
+                                 <div>
+                                    <label for="client_id" class="block text-sm font-medium text-gray-600 mb-1">Client ID</label>
+                                    <input type="text" id="client_id" name="client_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                </div>
+                                 <div>
+                                    <label for="client_secret" class="block text-sm font-medium text-gray-600 mb-1">Client Secret</label>
+                                    <input type="password" id="client_secret" name="client_secret" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                </div>
+                                 <div>
+                                    <label for="username" class="block text-sm font-medium text-gray-600 mb-1">API Username</label>
+                                    <input type="text" id="username" name="username" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                </div>
+                                 <div>
+                                    <label for="password" class="block text-sm font-medium text-gray-600 mb-1">API Password</label>
+                                    <input type="password" id="password" name="password" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                </div>
+                                 <div class="md:col-span-2">
+                                    <label for="api_external_token" class="block text-sm font-medium text-gray-600 mb-1">API External Token (for Auth)</label>
+                                    <input type="password" id="api_external_token" name="api_external_token" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Initial token for getting access token">
+                                </div>
                             </div>
+                        </div>
+                        
+                        <!-- Trading Defaults Section -->
+                        <div>
+                             <h3 class="text-lg font-semibold text-gray-800 border-b pb-3 mb-4">Trading Defaults</h3>
                              <div>
-                                <label for="client_id" class="block text-sm font-medium text-gray-700">Client ID</label>
-                                <input type="text" id="client_id" name="client_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                            </div>
-                             <div>
-                                <label for="client_secret" class="block text-sm font-medium text-gray-700">Client Secret</label>
-                                <input type="password" id="client_secret" name="client_secret" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                            </div>
-                             <div>
-                                <label for="username" class="block text-sm font-medium text-gray-700">API Username</label>
-                                <input type="text" id="username" name="username" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                            </div>
-                             <div>
-                                <label for="password" class="block text-sm font-medium text-gray-700">API Password</label>
-                                <input type="password" id="password" name="password" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                            </div>
-                             <div class="md:col-span-2">
-                                <label for="api_external_token" class="block text-sm font-medium text-gray-700">API External Token (for Auth)</label>
-                                <input type="password" id="api_external_token" name="api_external_token" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Initial token for getting access token">
-                            </div>
-                             <div class="md:col-span-2">
-                                <label for="otc_rate" class="block text-sm font-medium text-gray-700">Master OTC Rate (USD/ZAR)</label>
+                                <label for="otc_rate" class="block text-sm font-medium text-gray-600 mb-1">Master OTC Rate (USD/ZAR)</label>
                                 <input type="number" step="0.0001" id="otc_rate" name="otc_rate" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="e.g., 18.50">
                             </div>
                         </div>
-                        <div class="mt-6">
+
+                        <div class="pt-4">
                             <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Save Settings</button>
                         </div>
                     </form>
