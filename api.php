@@ -130,6 +130,7 @@ try {
         case 'get_bank_accounts': handleGetBankAccounts($db); break;
         case 'get_migrations': handleGetMigrations($db); break;
         case 'run_migration': handleRunMigration($db); break;
+        case 'stage_batch': handleStageBatch($db); break;
         default:
             http_response_code(404);
             echo json_encode(['success' => false, 'message' => 'Action not found']);
@@ -350,4 +351,61 @@ function handleRunMigration($db) {
     $migrationService = new MigrationService($db);
     $migrationService->runMigration($migrationFile);
     echo json_encode(['success' => true, 'message' => "Migration '{$migrationFile}' ran successfully."]);
+}
+
+function handleStageBatch($db) {
+    $request_body = file_get_contents('php://input');
+    $data = json_decode($request_body, true);
+
+    if (!isset($data['trades']) || !is_array($data['trades']) || empty($data['trades'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'No trades provided in the batch.']);
+        return;
+    }
+    
+    $db->beginTransaction();
+    try {
+        $batch_uid = 'batch_' . time();
+        $now = date('Y-m-d H:i:s');
+
+        // Create batch record
+        $stmt = $db->prepare("INSERT INTO batches (batch_uid, status, created_at) VALUES (?, ?, ?)");
+        $stmt->execute([$batch_uid, 'Staged', $now]);
+        $batch_id = $db->lastInsertId();
+
+        // Create trade records
+        $trade_stmt = $db->prepare(
+            "INSERT INTO trades (batch_id, client_id, amount_zar, status, created_at) VALUES (?, ?, ?, ?, ?)"
+        );
+        
+        $trades_with_names = [];
+        $client_info_stmt = $db->prepare("SELECT name FROM clients WHERE id = ?");
+
+        foreach ($data['trades'] as $trade) {
+            $trade_stmt->execute([$batch_id, $trade['clientId'], $trade['amount'], 'Pending Validation', $now]);
+            
+            // Get client name for the response
+            $client_info_stmt->execute([$trade['clientId']]);
+            $client_name = $client_info_stmt->fetchColumn();
+            
+            $trades_with_names[] = [
+                'client_name' => $client_name,
+                'amount_zar' => $trade['amount'],
+                'status' => 'Pending Validation'
+            ];
+        }
+
+        $db->commit();
+        
+        $response_batch = [
+            'batch_uid' => $batch_uid,
+            'trades' => $trades_with_names
+        ];
+
+        echo json_encode(['success' => true, 'batch' => $response_batch]);
+
+    } catch (Exception $e) {
+        $db->rollBack();
+        throw $e;
+    }
 }

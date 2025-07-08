@@ -20,7 +20,7 @@ The first step is to refactor the backend to make it more modular and easier to 
 [x] - Extract curl related functionality out of CapitecApiService
 4.1. [x] - Created php/services/HttpClientService.php to encapsulate all cURL logic.
 4.2. [x] - Refactored CapitecApiService to use the new HttpClientService for all API requests.
-4.3. [x] - Updated api.php to inject the HttpClientService into the CapitecApiService.
+4..3. [x] - Updated api.php to inject the HttpClientService into the CapitecApiService.
 
 [ ] - Separate Front-end Code into Distinct Files:
 5.1. [ ] - Create js/app.js and move all <script> content into it.
@@ -30,20 +30,20 @@ The first step is to refactor the backend to make it more modular and easier to 
 🎨 Phase 2: UI for Batch Trading (Trade Tab)
 This phase focuses on building the user interface that allows for the creation and execution of a trade batch.
 
-[ ] - Develop Batch Creation UI:
-1.1. [ ] - On the "Trade" tab, create a table listing all clients.
-1.2. [ ] - Add a checkbox next to each client for selection.
-1.3. [ ] - Add an input field for the ZAR amount for each client.
-1.4. [ ] - Add a "Create Trade Batch" button.
+[x] - Develop Batch Creation UI:
+1.1. [x] - On the "Trade" tab, create a table listing all clients.
+1.2. [x] - Add a checkbox next to each client for selection.
+1.3. [x] - Add an input field for the ZAR amount for each client.
+1.4. [x] - Add a "Create Trade Batch" button.
 
-[ ] - Develop Batch Staging & Validation UI:
-2.1. [ ] - On "Create Trade Batch" click, display the selected clients in a "Staged Batch" area.
-2.2. [ ] - Show client, amount, and placeholders for validation status.
-2.3. [ ] - Add a "Validate Batch" button.
+[x] - Develop Batch Staging & Validation UI:
+2.1. [x] - On "Create Trade Batch" click, display the selected clients in a "Staged Batch" area.
+2.2. [x] - Show client, amount, and placeholders for validation status.
+2.3. [x] - Add a "Validate Batch" button.
 
-[ ] - Develop Batch Execution UI:
-3.1. [ ] - Display the final, validated batch with a master "Execute Trades" button.
-3.2. [ ] - The UI should provide real-time feedback for each trade as it progresses.
+[x] - Develop Batch Execution UI:
+3.1. [x] - Display the final, validated batch with a master "Execute Trades" button.
+3.2. [x] - The UI should provide real-time feedback for each trade as it progresses.
 
 ⚙️ Phase 3: Backend Logic - Validation & Quoting
 This phase implements the core server-side logic for preparing and executing a trade.

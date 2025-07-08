@@ -108,7 +108,6 @@
                             </form>
                         </div>
                         
-                        <!-- **NEW**: Database Migrations Section -->
                         <div class="pt-6">
                              <h3 class="text-lg font-semibold text-gray-800 border-b pb-3 mb-4">Database Migrations</h3>
                              <div id="migration-section" class="mt-4 space-y-4">
@@ -155,9 +154,7 @@
                                     <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody id="client-list" class="bg-white divide-y divide-gray-200">
-                                <!-- Client rows will be inserted here -->
-                            </tbody>
+                            <tbody id="client-list" class="bg-white divide-y divide-gray-200"></tbody>
                         </table>
                     </div>
                 </div>
@@ -188,9 +185,7 @@
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Balance</th>
                                 </tr>
                             </thead>
-                            <tbody id="bank-account-list" class="bg-white divide-y divide-gray-200">
-                                <!-- Account rows will be inserted here -->
-                            </tbody>
+                            <tbody id="bank-account-list" class="bg-white divide-y divide-gray-200"></tbody>
                         </table>
                     </div>
                 </div>
@@ -199,8 +194,56 @@
             <!-- Trade Tab -->
             <div id="trade" class="tab-content hidden">
                 <div class="bg-white p-6 rounded-lg shadow-sm">
-                    <h2 class="text-xl font-semibold mb-4">Execute Batch Trade</h2>
-                    <p class="text-gray-600">This feature is coming soon. First, configure your settings and import your clients.</p>
+                    <!-- Client Selection View -->
+                    <div id="client-selection-view">
+                        <h2 class="text-xl font-semibold mb-4">1. Create New Trade Batch</h2>
+                        <p class="text-sm text-gray-600 mb-4">Select clients to include in the batch and enter the ZAR amount to be traded for each.</p>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="p-4"><input type="checkbox" id="select-all-clients" onchange="toggleAllClients(this.checked)"></th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CIF Number</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ZAR Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="trade-client-list" class="bg-white divide-y divide-gray-200">
+                                    <!-- Populated by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-6">
+                            <button id="create-batch-btn" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">Create Trade Batch</button>
+                        </div>
+                    </div>
+
+                    <!-- Staged Batch View -->
+                    <div id="staged-batch-view" class="hidden">
+                        <h2 class="text-xl font-semibold mb-2">2. Staged Batch</h2>
+                        <p class="text-sm text-gray-600 mb-4">Review the batch details below. Validate the batch to check for sufficient funds and other requirements before execution.</p>
+                        <p class="text-md font-medium mb-4">Batch ID: <span id="batch-uid-display" class="font-mono bg-gray-100 p-1 rounded"></span></p>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ZAR Amount</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="staged-batch-list" class="bg-white divide-y divide-gray-200">
+                                    <!-- Populated by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                         <div class="mt-6 space-x-4">
+                            <button id="validate-batch-btn" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Validate Batch</button>
+                            <button id="execute-trades-btn" class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 disabled:opacity-50" disabled>Execute Trades</button>
+                            <button id="cancel-batch-btn" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">Cancel Batch</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -275,15 +318,10 @@
                     button.classList.add('tab-active');
                 }
             });
-             if (tabName === 'clients') {
-                loadClients();
-            }
-             if (tabName === 'accounts') {
-                loadBankAccounts();
-            }
-             if (tabName === 'settings') {
-                loadMigrations();
-            }
+             if (tabName === 'clients') loadClients();
+             if (tabName === 'accounts') loadBankAccounts();
+             if (tabName === 'settings') loadMigrations();
+             if (tabName === 'trade') loadClientsForTrading();
         }
 
         // --- Settings Management ---
@@ -384,7 +422,7 @@
                 const response = await fetch(`${API_URL}?action=get_clients`);
                 const clients = await response.json();
                 const clientList = document.getElementById('client-list');
-                clientList.innerHTML = ''; // Clear existing list
+                clientList.innerHTML = ''; 
                 if (clients.length === 0) {
                     clientList.innerHTML = `<tr><td colspan="6" class="text-center py-4">No clients found. Add one or import from CSV.</td></tr>`;
                 } else {
@@ -465,7 +503,6 @@
                 console.error('Error importing CSV:', error);
                 showToast(error.message, true);
             }
-             // Reset file input to allow re-uploading the same file
             e.target.value = '';
         });
 
@@ -529,7 +566,7 @@
                 const response = await fetch(`${API_URL}?action=get_bank_accounts`);
                 const accounts = await response.json();
                 const accountList = document.getElementById('bank-account-list');
-                accountList.innerHTML = ''; // Clear existing list
+                accountList.innerHTML = ''; 
                 if (accounts.length === 0) {
                     accountList.innerHTML = `<tr><td colspan="6" class="text-center py-4">No bank accounts found. Click 'Sync Bank Accounts' to fetch them.</td></tr>`;
                 } else {
@@ -623,7 +660,7 @@
 
                 if (result.success) {
                     showToast(`Migration '${migrationFile}' ran successfully!`);
-                    loadMigrations(); // Refresh the list
+                    loadMigrations(); 
                 } else {
                     throw new Error(result.message || 'Failed to run migration.');
                 }
@@ -635,6 +672,101 @@
                 loader.classList.add('hidden');
                 button.disabled = false;
             }
+        });
+
+        // --- Trading ---
+        async function loadClientsForTrading() {
+            try {
+                const response = await fetch(`${API_URL}?action=get_clients`);
+                const clients = await response.json();
+                const clientList = document.getElementById('trade-client-list');
+                clientList.innerHTML = '';
+                if (clients.length === 0) {
+                    clientList.innerHTML = `<tr><td colspan="4" class="text-center py-4">No clients found. Please add clients in the 'Clients' tab first.</td></tr>`;
+                } else {
+                    clients.forEach(client => {
+                        const row = `
+                            <tr class="trade-client-row" data-client-id="${client.id}">
+                                <td class="p-4"><input type="checkbox" class="client-checkbox"></td>
+                                <td class="px-6 py-4 whitespace-nowrap">${client.name}</td>
+                                <td class="px-6 py-4 whitespace-nowrap">${client.cif_number}</td>
+                                <td class="px-6 py-4"><input type="number" class="zar-amount-input w-full rounded-md border-gray-300 shadow-sm" placeholder="0.00"></td>
+                            </tr>
+                        `;
+                        clientList.insertAdjacentHTML('beforeend', row);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading clients for trading:', error);
+                showToast('Could not load clients for trading.', true);
+            }
+        }
+        
+        function toggleAllClients(checked) {
+            document.querySelectorAll('.client-checkbox').forEach(checkbox => checkbox.checked = checked);
+        }
+
+        document.getElementById('create-batch-btn').addEventListener('click', async () => {
+            const trades = [];
+            document.querySelectorAll('.trade-client-row').forEach(row => {
+                const checkbox = row.querySelector('.client-checkbox');
+                if (checkbox.checked) {
+                    const clientId = row.dataset.clientId;
+                    const amount = row.querySelector('.zar-amount-input').value;
+                    if (amount && parseFloat(amount) > 0) {
+                        trades.push({ clientId, amount });
+                    }
+                }
+            });
+
+            if (trades.length === 0) {
+                showToast('Please select at least one client and enter a valid amount.', true);
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_URL}?action=stage_batch`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ trades })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showToast('Trade batch created successfully!');
+                    displayStagedBatch(result.batch);
+                } else {
+                    throw new Error(result.message || 'Failed to create batch.');
+                }
+            } catch (error) {
+                console.error('Error creating batch:', error);
+                showToast(`Error: ${error.message}`, true);
+            }
+        });
+
+        function displayStagedBatch(batch) {
+            document.getElementById('client-selection-view').classList.add('hidden');
+            document.getElementById('staged-batch-view').classList.remove('hidden');
+            document.getElementById('batch-uid-display').textContent = batch.batch_uid;
+
+            const stagedList = document.getElementById('staged-batch-list');
+            stagedList.innerHTML = '';
+            batch.trades.forEach(trade => {
+                const row = `
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap">${trade.client_name}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(trade.amount_zar)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap"><span class="font-mono text-xs">${trade.status}</span></td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"></td>
+                    </tr>
+                `;
+                stagedList.insertAdjacentHTML('beforeend', row);
+            });
+        }
+        
+        document.getElementById('cancel-batch-btn').addEventListener('click', () => {
+             document.getElementById('staged-batch-view').classList.add('hidden');
+             document.getElementById('client-selection-view').classList.remove('hidden');
+             loadClientsForTrading();
         });
 
 
