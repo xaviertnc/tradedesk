@@ -17,6 +17,16 @@ The first step is to refactor the backend to make it more modular and easier to 
 3.1. [x] - Add a batches table to store information about each trading batch.
 3.2. [x] - Modify the trades table to include batch_id, status, and columns for API response details (quote_id, quote_rate, deal_ref, etc.).
 
+[x] - Extract curl related functionality out of CapitecApiService
+4.1. [x] - Created php/services/HttpClientService.php to encapsulate all cURL logic.
+4.2. [x] - Refactored CapitecApiService to use the new HttpClientService for all API requests.
+4.3. [x] - Updated api.php to inject the HttpClientService into the CapitecApiService.
+
+[ ] - Separate Front-end Code into Distinct Files:
+5.1. [ ] - Create js/app.js and move all <script> content into it.
+5.2. [ ] - Create css/style.css and move all <style> content into it.
+5.3. [ ] - Update index.html to link to the new .js and .css files.
+
 🎨 Phase 2: UI for Batch Trading (Trade Tab)
 This phase focuses on building the user interface that allows for the creation and execution of a trade batch.
 

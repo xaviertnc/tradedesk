@@ -44,70 +44,91 @@
         <main>
             <!-- Settings Tab -->
             <div id="settings" class="tab-content">
-                <!-- **FIX**: Increased max-width for better desktop view -->
-                <div class="bg-white p-8 rounded-lg shadow-sm max-w-4xl">
-                    <h2 class="text-2xl font-bold text-gray-900 mb-6">API Configuration</h2>
-                    <form id="settings-form" class="space-y-8">
-                        
-                        <!-- API Endpoints Section -->
+                <div class="bg-white p-8 rounded-lg shadow-sm max-w-4xl mx-auto">
+                    <div class="space-y-10">
                         <div>
-                            <h3 class="text-lg font-semibold text-gray-800 border-b pb-3 mb-4">API Endpoints</h3>
-                            <div class="space-y-6">
+                            <h2 class="text-2xl font-bold text-gray-900 mb-6">API Configuration</h2>
+                            <form id="settings-form" class="space-y-8">
+                                
                                 <div>
-                                    <label for="auth_url" class="block text-sm font-medium text-gray-600 mb-1">Auth URL</label>
-                                    <input type="text" id="auth_url" name="auth_url" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="https://.../oauth2/v2.0/token">
+                                    <h3 class="text-lg font-semibold text-gray-800 border-b pb-3 mb-4">API Endpoints</h3>
+                                    <div class="space-y-6">
+                                        <div>
+                                            <label for="auth_url" class="block text-sm font-medium text-gray-600 mb-1">Auth URL</label>
+                                            <input type="text" id="auth_url" name="auth_url" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="https://.../oauth2/v2.0/token">
+                                        </div>
+                                        <div>
+                                            <label for="api_trading_url" class="block text-sm font-medium text-gray-600 mb-1">Trading API Base URL</label>
+                                            <input type="text" id="api_trading_url" name="api_trading_url" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="https://.../trading-channel-service/api/v1">
+                                        </div>
+                                         <div>
+                                            <label for="api_account_url" class="block text-sm font-medium text-gray-600 mb-1">Account API Base URL</label>
+                                            <input type="text" id="api_account_url" name="api_account_url" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="https://.../account/api/v1">
+                                        </div>
+                                    </div>
                                 </div>
+
                                 <div>
-                                    <label for="api_trading_url" class="block text-sm font-medium text-gray-600 mb-1">Trading API Base URL</label>
-                                    <input type="text" id="api_trading_url" name="api_trading_url" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="https://.../trading-channel-service/api/v1">
+                                    <h3 class="text-lg font-semibold text-gray-800 border-b pb-3 mb-4">Authentication Credentials</h3>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
+                                         <div>
+                                            <label for="client_id" class="block text-sm font-medium text-gray-600 mb-1">Client ID</label>
+                                            <input type="text" id="client_id" name="client_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                        </div>
+                                         <div>
+                                            <label for="client_secret" class="block text-sm font-medium text-gray-600 mb-1">Client Secret</label>
+                                            <input type="password" id="client_secret" name="client_secret" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                        </div>
+                                         <div>
+                                            <label for="username" class="block text-sm font-medium text-gray-600 mb-1">API Username</label>
+                                            <input type="text" id="username" name="username" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                        </div>
+                                         <div>
+                                            <label for="password" class="block text-sm font-medium text-gray-600 mb-1">API Password</label>
+                                            <input type="password" id="password" name="password" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                        </div>
+                                         <div class="md:col-span-2">
+                                            <label for="api_external_token" class="block text-sm font-medium text-gray-600 mb-1">API External Token (for Auth)</label>
+                                            <input type="password" id="api_external_token" name="api_external_token" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Initial token for getting access token">
+                                        </div>
+                                    </div>
                                 </div>
-                                 <div>
-                                    <label for="api_account_url" class="block text-sm font-medium text-gray-600 mb-1">Account API Base URL</label>
-                                    <input type="text" id="api_account_url" name="api_account_url" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="https://.../account/api/v1">
+                                
+                                <div>
+                                     <h3 class="text-lg font-semibold text-gray-800 border-b pb-3 mb-4">Trading Defaults</h3>
+                                     <div>
+                                        <label for="otc_rate" class="block text-sm font-medium text-gray-600 mb-1">Master OTC Rate (USD/ZAR)</label>
+                                        <input type="number" step="0.0001" id="otc_rate" name="otc_rate" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="e.g., 18.50">
+                                    </div>
                                 </div>
-                            </div>
+
+                                <div class="pt-4">
+                                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Save Settings</button>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <!-- **NEW**: Database Migrations Section -->
+                        <div class="pt-6">
+                             <h3 class="text-lg font-semibold text-gray-800 border-b pb-3 mb-4">Database Migrations</h3>
+                             <div id="migration-section" class="mt-4 space-y-4">
+                                <p class="text-sm text-gray-600">Run database migrations to update the application's schema. This is typically only needed after an update.</p>
+                                <div class="flex items-center space-x-4">
+                                    <select id="migration-select" class="block w-full max-w-xs rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                        <!-- Options will be populated by JavaScript -->
+                                    </select>
+                                    <button id="run-migration-btn" class="bg-yellow-500 text-white px-4 py-2 rounded-md hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                        <span id="migration-btn-text">Run Selected Migration</span>
+                                        <div id="migration-loader" class="loader hidden"></div>
+                                    </button>
+                                </div>
+                                <div id="no-migrations-message" class="text-sm text-green-700 hidden">
+                                    Your database schema is up to date.
+                                </div>
+                             </div>
                         </div>
 
-                        <!-- Authentication Credentials Section -->
-                        <div>
-                            <h3 class="text-lg font-semibold text-gray-800 border-b pb-3 mb-4">Authentication Credentials</h3>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
-                                 <div>
-                                    <label for="client_id" class="block text-sm font-medium text-gray-600 mb-1">Client ID</label>
-                                    <input type="text" id="client_id" name="client_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                </div>
-                                 <div>
-                                    <label for="client_secret" class="block text-sm font-medium text-gray-600 mb-1">Client Secret</label>
-                                    <input type="password" id="client_secret" name="client_secret" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                </div>
-                                 <div>
-                                    <label for="username" class="block text-sm font-medium text-gray-600 mb-1">API Username</label>
-                                    <input type="text" id="username" name="username" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                </div>
-                                 <div>
-                                    <label for="password" class="block text-sm font-medium text-gray-600 mb-1">API Password</label>
-                                    <input type="password" id="password" name="password" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                </div>
-                                 <div class="md:col-span-2">
-                                    <label for="api_external_token" class="block text-sm font-medium text-gray-600 mb-1">API External Token (for Auth)</label>
-                                    <input type="password" id="api_external_token" name="api_external_token" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Initial token for getting access token">
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Trading Defaults Section -->
-                        <div>
-                             <h3 class="text-lg font-semibold text-gray-800 border-b pb-3 mb-4">Trading Defaults</h3>
-                             <div>
-                                <label for="otc_rate" class="block text-sm font-medium text-gray-600 mb-1">Master OTC Rate (USD/ZAR)</label>
-                                <input type="number" step="0.0001" id="otc_rate" name="otc_rate" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="e.g., 18.50">
-                            </div>
-                        </div>
-
-                        <div class="pt-4">
-                            <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Save Settings</button>
-                        </div>
-                    </form>
+                    </div>
                 </div>
             </div>
 
@@ -259,6 +280,9 @@
             }
              if (tabName === 'accounts') {
                 loadBankAccounts();
+            }
+             if (tabName === 'settings') {
+                loadMigrations();
             }
         }
 
@@ -533,10 +557,91 @@
             }
         }
 
+        // --- Migrations ---
+        async function loadMigrations() {
+            try {
+                const response = await fetch(`${API_URL}?action=get_migrations`);
+                const migrations = await response.json();
+                const select = document.getElementById('migration-select');
+                const button = document.getElementById('run-migration-btn');
+                const noMigrationsMsg = document.getElementById('no-migrations-message');
+                
+                select.innerHTML = '';
+
+                if (migrations.available && migrations.available.length > 0) {
+                    migrations.available.forEach(m => {
+                        const option = document.createElement('option');
+                        option.value = m;
+                        option.textContent = m;
+                        select.appendChild(option);
+                    });
+                    select.classList.remove('hidden');
+                    button.classList.remove('hidden');
+                    button.disabled = false;
+                    noMigrationsMsg.classList.add('hidden');
+                } else {
+                    select.classList.add('hidden');
+                    button.classList.add('hidden');
+                    button.disabled = true;
+                    noMigrationsMsg.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Error loading migrations:', error);
+                showToast('Could not load migrations list.', true);
+            }
+        }
+
+        document.getElementById('run-migration-btn').addEventListener('click', async () => {
+            const select = document.getElementById('migration-select');
+            const migrationFile = select.value;
+            if (!migrationFile) {
+                showToast('Please select a migration to run.', true);
+                return;
+            }
+
+            if (!confirm(`Are you sure you want to run the migration: ${migrationFile}? This action cannot be undone.`)) {
+                return;
+            }
+
+            const btnText = document.getElementById('migration-btn-text');
+            const loader = document.getElementById('migration-loader');
+            const button = document.getElementById('run-migration-btn');
+
+            btnText.classList.add('hidden');
+            loader.classList.remove('hidden');
+            button.disabled = true;
+
+            try {
+                const formData = new FormData();
+                formData.append('migration', migrationFile);
+
+                const response = await fetch(`${API_URL}?action=run_migration`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    showToast(`Migration '${migrationFile}' ran successfully!`);
+                    loadMigrations(); // Refresh the list
+                } else {
+                    throw new Error(result.message || 'Failed to run migration.');
+                }
+            } catch(error) {
+                console.error('Error running migration:', error);
+                showToast(`Error: ${error.message}`, true);
+            } finally {
+                btnText.classList.remove('hidden');
+                loader.classList.add('hidden');
+                button.disabled = false;
+            }
+        });
+
 
         // --- Initial Load ---
         document.addEventListener('DOMContentLoaded', () => {
             loadSettings();
+            loadMigrations();
         });
 
     </script>

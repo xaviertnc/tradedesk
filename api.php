@@ -6,9 +6,13 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
+// --- Include Services ---
+require_once __DIR__ . '/HttpClientService.php';
+require_once __DIR__ . '/CapitecApiService.php';
+require_once __DIR__ . '/MigrationService.php';
+
 // --- Server-Side Logging ---
 function debug_log($var, $pretext = '', $minDebugLevel = 1, $type = 'DEBUG', $format = 'text') {
-    // For this app, we'll keep it simple and always log.
     $log_file = __DIR__ . '/debug.log';
     $timestamp = date('Y-m-d H:i:s');
     $log_entry = "[$timestamp] [$type] $pretext: ";
@@ -80,41 +84,29 @@ function getDbConnection() {
         curr_account_balance REAL,
         UNIQUE(account_no)
     )");
+    
+    $pdo->exec("CREATE TABLE IF NOT EXISTS batches (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        batch_uid TEXT NOT NULL UNIQUE,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )");
 
-    // Trades Table
     $pdo->exec("CREATE TABLE IF NOT EXISTS trades (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         client_id INTEGER,
+        batch_id INTEGER, 
         status TEXT,
         status_message TEXT,
-        bank_quote_id TEXT,
-        bank_rate REAL,
-        client_rate REAL,
+        quote_id TEXT,
+        quote_rate REAL,
         amount_zar REAL,
         bank_trxn_id TEXT,
+        deal_ref TEXT,
         created_at TEXT,
-        FOREIGN KEY (client_id) REFERENCES clients(id)
+        FOREIGN KEY (client_id) REFERENCES clients(id),
+        FOREIGN KEY (batch_id) REFERENCES batches(id)
     )");
-    
-    // Migration logic for older DBs
-    $migrations = [
-        'api_external_token' => "ALTER TABLE config ADD COLUMN api_external_token TEXT DEFAULT 'YOUR_INTERMEDIATE_TOKEN'",
-        'api_trading_url' => "ALTER TABLE config ADD COLUMN api_trading_url TEXT",
-        'api_account_url' => "ALTER TABLE config ADD COLUMN api_account_url TEXT"
-    ];
-
-    foreach ($migrations as $column => $alter_statement) {
-        try {
-            $pdo->query("SELECT $column FROM config LIMIT 1");
-        } catch (PDOException $e) {
-            if (strpos($e->getMessage(), 'no such column') !== false) {
-                debug_log("Column '{$column}' not found in config table, adding it now.");
-                $pdo->exec($alter_statement);
-            } else {
-                throw $e;
-            }
-        }
-    }
     
     debug_log('Database schema verified.');
     return $pdo;
@@ -136,6 +128,8 @@ try {
         case 'find_zar_account': handleFindZarAccount($db); break;
         case 'sync_bank_accounts': handleSyncBankAccounts($db); break;
         case 'get_bank_accounts': handleGetBankAccounts($db); break;
+        case 'get_migrations': handleGetMigrations($db); break;
+        case 'run_migration': handleRunMigration($db); break;
         default:
             http_response_code(404);
             echo json_encode(['success' => false, 'message' => 'Action not found']);
@@ -144,77 +138,6 @@ try {
     http_response_code(500);
     debug_log("Caught exception in api.php: " . $e->getMessage(), 'FATAL', 1, 'ERROR');
     echo json_encode(['success' => false, 'message' => 'An internal server error occurred: ' . $e->getMessage()]);
-}
-
-
-// --- API Communication Helper ---
-function makeApiRequest($url, $method = 'GET', $payload = null, $headers = []) {
-    $ch = curl_init();
-    if ($ch === false) {
-        throw new Exception("Failed to initialize cURL.");
-    }
-    $defaultHeaders = ['Content-Type: application/json'];
-    $allHeaders = array_merge($defaultHeaders, $headers);
-
-    $loggableHeaders = [];
-    foreach ($allHeaders as $header) {
-        if (stripos($header, 'Authorization:') === 0) {
-            $parts = explode(' ', $header);
-            $loggableHeaders[] = $parts[0] . ' Bearer ' . substr($parts[2] ?? '', 0, 8) . '...';
-        } else {
-            $loggableHeaders[] = $header;
-        }
-    }
-    debug_log([
-        'URL' => $url,
-        'Method' => $method,
-        'Headers' => $loggableHeaders,
-        'Payload' => $payload
-    ], '--- Sending API Request ---');
-    
-
-    $options = [
-        CURLOPT_URL => $url,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 60,
-        CURLOPT_HTTPHEADER => $allHeaders,
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_SSL_VERIFYHOST => false,
-    ];
-
-    if ($method === 'POST') {
-        $options[CURLOPT_POST] = true;
-        if ($payload) {
-            $options[CURLOPT_POSTFIELDS] = json_encode($payload);
-        }
-    }
-    
-    curl_setopt_array($ch, $options);
-    
-    $response = curl_exec($ch);
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $error = curl_error($ch);
-    curl_close($ch);
-
-    debug_log([
-        'URL' => $url,
-        'HTTP Code' => $http_code,
-        'cURL Error' => $error ?: 'None',
-        'Raw Response' => $response
-    ], '--- Received API Response ---');
-
-    if ($error) {
-        throw new Exception("cURL Error: " . $error);
-    }
-    
-    $responseData = json_decode($response, true);
-
-    if ($http_code >= 400) {
-        $errorMessage = $responseData['result']['resultMsg'] ?? $responseData['error_description'] ?? 'API request failed.';
-        throw new Exception("API Error on '{$url}' (HTTP {$http_code}): " . $errorMessage);
-    }
-
-    return $responseData;
 }
 
 // --- Handler Functions ---
@@ -397,138 +320,9 @@ function handleFindZarAccount($db) {
 }
 
 function handleSyncBankAccounts($db) {
-    debug_log('Starting bank account sync process...');
-    $configStmt = $db->query("SELECT * FROM config WHERE id = 1");
-    $config = $configStmt->fetch();
-
-    $required_keys = ['api_account_url', 'auth_url', 'client_id', 'client_secret', 'username', 'password', 'api_external_token'];
-    foreach($required_keys as $key) {
-        if (empty($config[$key])) {
-             throw new Exception("API setting '$key' is not configured in Settings.");
-        }
-    }
-    debug_log('Configuration loaded successfully.');
-    
-    // Step 1: Get OAuth Token
-    debug_log('Requesting OAuth token...');
-    $tokenPayload = http_build_query([
-        'client_id' => $config['client_id'],
-        'client_secret' => $config['client_secret'],
-        'grant_type' => 'password',
-        'username' => $config['username'],
-        'password' => $config['password'],
-        'scope' => 'offline_access api://' . $config['client_id'] . '/.default',
-    ]);
-
-    $ch = curl_init($config['auth_url']);
-    if ($ch === false) {
-        throw new Exception("Failed to initialize cURL for Auth URL. Is the URL valid in Settings?");
-    }
-
-    $authHeaders = [
-        'Content-Type: application/x-www-form-urlencoded',
-        'Authorization: Bearer ' . $config['api_external_token']
-    ];
-    debug_log([
-        'URL' => $config['auth_url'],
-        'Method' => 'POST',
-        'Headers' => ['Authorization: Bearer ' . substr($config['api_external_token'], 0, 8) . '...'],
-        'Payload' => $tokenPayload
-    ], '--- Sending Auth Request ---');
-
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => $tokenPayload,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => $authHeaders,
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_SSL_VERIFYHOST => false,
-    ]);
-    $tokenResponse = curl_exec($ch);
-    $tokenHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $tokenError = curl_error($ch);
-    curl_close($ch);
-
-    debug_log([
-        'URL' => $config['auth_url'],
-        'HTTP Code' => $tokenHttpCode,
-        'cURL Error' => $tokenError ?: 'None',
-        'Raw Response' => $tokenResponse
-    ], '--- Received Auth Response ---');
-
-
-    if ($tokenError) throw new Exception("Auth cURL Error: " . $tokenError);
-    
-    $tokenData = json_decode($tokenResponse, true);
-    
-    if ($tokenHttpCode >= 400 || !is_array($tokenData) || !isset($tokenData['access_token'])) {
-        $errorMsg = 'Failed to obtain access token.';
-        if (is_array($tokenData) && isset($tokenData['error_description'])) {
-            $errorMsg = $tokenData['error_description'];
-        } elseif (!is_array($tokenData) && !empty($tokenResponse)) {
-            $errorMsg = "Invalid response from auth server. Check credentials and external token.";
-        }
-        throw new Exception("Auth API Error on '{$config['auth_url']}' (HTTP $tokenHttpCode): " . $errorMsg);
-    }
-    $accessToken = $tokenData['access_token'];
-    debug_log('Successfully obtained access token.');
-
-    // Step 2: Call Bulk Balance Enquiry API
-    debug_log('Starting bulk balance enquiry...');
-    $allAccounts = [];
-    $page = 0;
-    $totalPages = 1;
-    $balanceUrl = rtrim($config['api_account_url'], '/') . '/bulk-balance';
-
-    do {
-        $balancePayload = [
-            'header' => ['userId' => $config['username']],
-            'page' => $page,
-            'size' => 100
-        ];
-        $apiHeaders = ['Authorization: Bearer ' . $accessToken];
-        $balanceData = makeApiRequest($balanceUrl, 'POST', $balancePayload, $apiHeaders);
-
-        if (isset($balanceData['payload']['content'])) {
-            $count = count($balanceData['payload']['content']);
-            debug_log("Page {$page} contained {$count} accounts.");
-            $allAccounts = array_merge($allAccounts, $balanceData['payload']['content']);
-            $totalPages = $balanceData['payload']['page']['totalPages'] ?? $totalPages;
-        } else {
-            if ($page === 0) {
-                throw new Exception("API response missing 'content' payload.");
-            }
-        }
-        $page++;
-    } while ($page < $totalPages);
-    debug_log('Finished fetching all pages from bulk balance API. Total accounts fetched: ' . count($allAccounts));
-
-    // Step 3: Filter and save to DB
-    $syncedCount = 0;
-    if (!empty($allAccounts)) {
-        $db->beginTransaction();
-        $sql = "INSERT OR REPLACE INTO bank_accounts (cus_cif_no, cus_name, account_no, account_type, account_status, account_currency, curr_account_balance) 
-                VALUES (:cus_cif_no, :cus_name, :account_no, :account_type, :account_status, :account_currency, :curr_account_balance)";
-        $stmt = $db->prepare($sql);
-
-        foreach ($allAccounts as $account) {
-            if (isset($account['accountType']) && strtoupper($account['accountType']) === 'FX TRADE ACCOUNT') {
-                $stmt->execute([
-                    ':cus_cif_no' => $account['cusCifNo'],
-                    ':cus_name' => $account['cusName'],
-                    ':account_no' => $account['accountNo'],
-                    ':account_type' => $account['accountType'],
-                    ':account_status' => $account['accountStatus'],
-                    ':account_currency' => $account['accountCurrency'],
-                    ':curr_account_balance' => $account['currAccountBalance']
-                ]);
-                $syncedCount++;
-            }
-        }
-        $db->commit();
-    }
-    debug_log("Sync complete. Saved {$syncedCount} 'FX TRADE ACCOUNT' type accounts to the database.");
-
+    $httpClient = new HttpClientService();
+    $apiService = new CapitecApiService($db, $httpClient);
+    $syncedCount = $apiService->syncAllAccounts();
     echo json_encode(['success' => true, 'synced_count' => $syncedCount]);
 }
 
@@ -536,4 +330,24 @@ function handleGetBankAccounts($db) {
     $stmt = $db->query("SELECT * FROM bank_accounts ORDER BY cus_name, account_no ASC");
     $accounts = $stmt->fetchAll();
     echo json_encode($accounts);
+}
+
+function handleGetMigrations($db) {
+    $migrationService = new MigrationService($db);
+    $available = $migrationService->getAvailableMigrations();
+    $ran = $migrationService->getRanMigrations();
+    echo json_encode(['available' => $available, 'ran' => $ran]);
+}
+
+function handleRunMigration($db) {
+    $migrationFile = $_POST['migration'] ?? null;
+    if (!$migrationFile) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Migration filename not provided.']);
+        return;
+    }
+    
+    $migrationService = new MigrationService($db);
+    $migrationService->runMigration($migrationFile);
+    echo json_encode(['success' => true, 'message' => "Migration '{$migrationFile}' ran successfully."]);
 }
