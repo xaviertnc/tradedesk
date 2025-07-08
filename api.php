@@ -10,6 +10,7 @@ error_reporting(E_ALL);
 require_once __DIR__ . '/HttpClientService.php';
 require_once __DIR__ . '/CapitecApiService.php';
 require_once __DIR__ . '/MigrationService.php';
+require_once __DIR__ . '/GeminiApiService.php';
 
 // --- Server-Side Logging ---
 function debug_log($var, $pretext = '', $minDebugLevel = 1, $type = 'DEBUG', $format = 'text') {
@@ -131,6 +132,7 @@ try {
         case 'get_migrations': handleGetMigrations($db); break;
         case 'run_migration': handleRunMigration($db); break;
         case 'stage_batch': handleStageBatch($db); break;
+        case 'get_market_analysis': handleGetMarketAnalysis($db); break;
         default:
             http_response_code(404);
             echo json_encode(['success' => false, 'message' => 'Action not found']);
@@ -408,4 +410,11 @@ function handleStageBatch($db) {
         $db->rollBack();
         throw $e;
     }
+}
+
+function handleGetMarketAnalysis($db) {
+    $httpClient = new HttpClientService();
+    $geminiService = new GeminiApiService($httpClient);
+    $analysis = $geminiService->getUsdZarAnalysis();
+    echo json_encode(['success' => true, 'analysis' => $analysis]);
 }

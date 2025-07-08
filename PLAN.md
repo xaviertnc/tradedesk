@@ -20,12 +20,12 @@ The first step is to refactor the backend to make it more modular and easier to 
 [x] - Extract curl related functionality out of CapitecApiService
 4.1. [x] - Created php/services/HttpClientService.php to encapsulate all cURL logic.
 4.2. [x] - Refactored CapitecApiService to use the new HttpClientService for all API requests.
-4..3. [x] - Updated api.php to inject the HttpClientService into the CapitecApiService.
+4.3. [x] - Updated api.php to inject the HttpClientService into the CapitecApiService.
 
-[ ] - Separate Front-end Code into Distinct Files:
-5.1. [ ] - Create js/app.js and move all <script> content into it.
-5.2. [ ] - Create css/style.css and move all <style> content into it.
-5.3. [ ] - Update index.html to link to the new .js and .css files.
+[x] - Separate Front-end Code into Distinct Files:
+5.1. [x] - Create js/app.js and move all <script> content into it.
+5.2. [x] - Create css/style.css and move all <style> content into it.
+5.3. [x] - Update index.html to link to the new .js and .css files.
 
 🎨 Phase 2: UI for Batch Trading (Trade Tab)
 This phase focuses on building the user interface that allows for the creation and execution of a trade batch.
@@ -85,3 +85,12 @@ This phase finalizes the trade by booking it and confirming its status.
 [ ] - Implement Trade History Tab:
 3.1. [ ] - Create a UI on the "History" tab to display a list of all past batches.
 3.2. [ ] - Allow the user to click on a batch to see a detailed view of its trades.
+
+✨ Phase 5: Gemini API Integrations
+This phase focuses on adding AI-powered features to enhance the trading workflow.
+
+[x] - Implement Live Market Analysis:
+1.1. [x] - Add a "Get Market Analysis" button to the "Trade" tab.
+1.2. [x] - Create a GeminiApiService.php to handle communication with the Gemini API.
+1.3. [x] - Implement a backend action (get_market_analysis) to fetch a USD/ZAR market summary.
+1.4. [x] - Display the analysis in a modal window on the front-end.
