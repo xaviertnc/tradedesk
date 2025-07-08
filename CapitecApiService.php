@@ -2,14 +2,16 @@
 // CapitecApiService.php
 
 /**
- * Handles all direct API communication with the Capitec Forex endpoints.
+ * Handles all business logic for communicating with the Capitec Forex endpoints.
  */
 class CapitecApiService {
     private PDO $db;
     private array $config;
+    private HttpClientService $httpClient;
 
-    public function __construct(PDO $db) {
+    public function __construct(PDO $db, HttpClientService $httpClient) {
         $this->db = $db;
+        $this->httpClient = $httpClient;
         $this->loadConfig();
     }
 
@@ -38,51 +40,17 @@ class CapitecApiService {
             'Authorization: Bearer ' . $this->config['api_external_token']
         ];
 
-        // Auth requests don't use the standard makeApiRequest because the payload isn't JSON
-        $ch = curl_init($this->config['auth_url']);
-        if ($ch === false) {
-            throw new Exception("Failed to initialize cURL for Auth URL. Is the URL valid in Settings?");
-        }
-
-        debug_log([
-            'URL' => $this->config['auth_url'],
-            'Method' => 'POST',
-            'Headers' => ['Authorization: Bearer ' . substr($this->config['api_external_token'], 0, 8) . '...'],
-            'Payload' => $tokenPayload
-        ], '--- Sending Auth Request ---');
-
-        curl_setopt_array($ch, [
-            CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => $tokenPayload,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => $authHeaders,
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => false,
-        ]);
-        $tokenResponse = curl_exec($ch);
-        $tokenHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $tokenError = curl_error($ch);
-        curl_close($ch);
-
-        debug_log([
-            'URL' => $this->config['auth_url'],
-            'HTTP Code' => $tokenHttpCode,
-            'cURL Error' => $tokenError ?: 'None',
-            'Raw Response' => $tokenResponse
-        ], '--- Received Auth Response ---');
-
-        if ($tokenError) throw new Exception("Auth cURL Error: " . $tokenError);
+        $tokenData = $this->httpClient->sendRequest(
+            $this->config['auth_url'],
+            'POST',
+            $tokenPayload,
+            $authHeaders,
+            false // Not a JSON payload
+        );
         
-        $tokenData = json_decode($tokenResponse, true);
-        
-        if ($tokenHttpCode >= 400 || !is_array($tokenData) || !isset($tokenData['access_token'])) {
-            $errorMsg = 'Failed to obtain access token.';
-            if (is_array($tokenData) && isset($tokenData['error_description'])) {
-                $errorMsg = $tokenData['error_description'];
-            } elseif (!is_array($tokenData) && !empty($tokenResponse)) {
-                $errorMsg = "Invalid response from auth server. Check credentials and external token.";
-            }
-            throw new Exception("Auth API Error on '{$this->config['auth_url']}' (HTTP $tokenHttpCode): " . $errorMsg);
+        if (!isset($tokenData['access_token'])) {
+             $errorMsg = $tokenData['error_description'] ?? 'Failed to obtain access token.';
+             throw new Exception("Auth API Error: " . $errorMsg);
         }
         
         debug_log('Successfully obtained access token.');
@@ -105,7 +73,7 @@ class CapitecApiService {
                 'size' => 100
             ];
             $apiHeaders = ['Authorization: Bearer ' . $accessToken];
-            $balanceData = $this->makeApiRequest($balanceUrl, 'POST', $balancePayload, $apiHeaders);
+            $balanceData = $this->httpClient->sendRequest($balanceUrl, 'POST', $balancePayload, $apiHeaders);
 
             if (isset($balanceData['payload']['content'])) {
                 $count = count($balanceData['payload']['content']);
@@ -144,73 +112,5 @@ class CapitecApiService {
         }
         debug_log("Sync complete. Saved {$syncedCount} 'FX TRADE ACCOUNT' type accounts to the database.");
         return $syncedCount;
-    }
-
-    private function makeApiRequest($url, $method = 'GET', $payload = null, $headers = []) {
-        $ch = curl_init();
-        if ($ch === false) {
-            throw new Exception("Failed to initialize cURL.");
-        }
-        $defaultHeaders = ['Content-Type: application/json'];
-        $allHeaders = array_merge($defaultHeaders, $headers);
-
-        $loggableHeaders = [];
-        foreach ($allHeaders as $header) {
-            if (stripos($header, 'Authorization:') === 0) {
-                $parts = explode(' ', $header);
-                $loggableHeaders[] = $parts[0] . ' Bearer ' . substr($parts[2] ?? '', 0, 8) . '...';
-            } else {
-                $loggableHeaders[] = $header;
-            }
-        }
-        debug_log([
-            'URL' => $url,
-            'Method' => $method,
-            'Headers' => $loggableHeaders,
-            'Payload' => $payload
-        ], '--- Sending API Request ---');
-        
-        $options = [
-            CURLOPT_URL => $url,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 60,
-            CURLOPT_HTTPHEADER => $allHeaders,
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => false,
-        ];
-
-        if ($method === 'POST') {
-            $options[CURLOPT_POST] = true;
-            if ($payload) {
-                $options[CURLOPT_POSTFIELDS] = json_encode($payload);
-            }
-        }
-        
-        curl_setopt_array($ch, $options);
-        
-        $response = curl_exec($ch);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $error = curl_error($ch);
-        curl_close($ch);
-
-        debug_log([
-            'URL' => $url,
-            'HTTP Code' => $http_code,
-            'cURL Error' => $error ?: 'None',
-            'Raw Response' => $response
-        ], '--- Received API Response ---');
-
-        if ($error) {
-            throw new Exception("cURL Error: " . $error);
-        }
-        
-        $responseData = json_decode($response, true);
-
-        if ($http_code >= 400) {
-            $errorMessage = $responseData['result']['resultMsg'] ?? $responseData['error_description'] ?? 'API request failed.';
-            throw new Exception("API Error on '{$url}' (HTTP {$http_code}): " . $errorMessage);
-        }
-
-        return $responseData;
     }
 }
