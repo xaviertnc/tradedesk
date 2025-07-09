@@ -10,9 +10,9 @@
  * @author Gemini <gemini@google.com>
  *
  * Last 3 version commits:
+ * @version 1.3 - FT - 10 Jul 2025 - Implement concurrent batch handling with locking and queue management
  * @version 1.2 - FT - 10 Jul 2025 - Auto-detect and set batch final status in updateBatchProgress
  * @version 1.1 - UPD - 09 Jul 2025 - Refactor to use Batch and Trade models
- * @version 1.0 - INIT - 09 Jul 2025 - Initial commit.
  */
 
 require_once __DIR__ . '/Batch.php';
@@ -23,6 +23,8 @@ class BatchService
   private $pdo;
   private $batchModel;
   private $tradeModel;
+  private $processId;
+  private $lockTimeout = 300; // 5 minutes
 
 
   public function __construct( PDO $pdo )
@@ -30,6 +32,7 @@ class BatchService
     $this->pdo = $pdo;
     $this->batchModel = new Batch( $pdo );
     $this->tradeModel = new Trade( $pdo );
+    $this->processId = uniqid( 'process_', true );
   } // __construct
 
 
@@ -425,34 +428,56 @@ class BatchService
    */
   public function runBatchAsync( int $batchId ): bool
   {
-    $batch = $this->batchModel->find( $batchId );
-    if ( ! $batch ) {
-      return false;
+    // Try to acquire lock for this batch
+    if ( ! $this->acquireBatchLock( $batchId ) ) {
+      return false; // Batch is already being processed by another process
     }
 
-    // Update batch status to running
-    if ( ! $batch->updateStatus( Batch::STATUS_RUNNING ) ) {
-      return false;
-    }
+    try
+    {
+      $batch = $this->batchModel->find( $batchId );
+      if ( ! $batch ) {
+        $this->releaseBatchLock( $batchId );
+        return false;
+      }
 
-    // Get all pending trades in the batch
-    $trades = $this->tradeModel->findByBatchId( $batchId );
-    $pendingTrades = array_filter( $trades, function( $trade ) {
-      return $trade->getAttribute( 'status' ) === Trade::STATUS_PENDING;
-    } );
+      // Update batch status to running and set started_at
+      $updateData = [
+        'status' => Batch::STATUS_RUNNING,
+        'started_at' => date( 'Y-m-d H:i:s' )
+      ];
+      
+      if ( ! $batch->update( $batchId, $updateData ) ) {
+        $this->releaseBatchLock( $batchId );
+        return false;
+      }
 
-    if ( empty( $pendingTrades ) ) {
-      // No pending trades, mark batch as completed
-      $this->updateBatchProgress( $batchId );
+      // Get all pending trades in the batch
+      $trades = $this->tradeModel->findByBatchId( $batchId );
+      $pendingTrades = array_filter( $trades, function( $trade ) {
+        return $trade->getAttribute( 'status' ) === Trade::STATUS_PENDING;
+      } );
+
+      if ( empty( $pendingTrades ) ) {
+        // No pending trades, mark batch as completed
+        $this->updateBatchProgress( $batchId );
+        $this->releaseBatchLock( $batchId );
+        return true;
+      }
+
+      // Process trades with concurrency control
+      $this->processTradesWithConcurrency( $batchId, $pendingTrades );
+
       return true;
     }
+    catch ( Exception $e )
+    {
+      // Release lock on error
+      $this->releaseBatchLock( $batchId );
+      error_log( "Error processing batch {$batchId}: " . $e->getMessage() );
+      return false;
+    } // try-catch
 
-    // Process trades asynchronously (in a real system, this would be a background job)
-    foreach ( $pendingTrades as $trade ) {
-      $this->executeTradeInBatch( $trade );
-    }
-
-    return true;
   } // runBatchAsync
 
 
@@ -681,5 +706,309 @@ class BatchService
       'total_failed' => count( $failedTrades )
     ];
   } // getBatchErrors
+
+
+  /**
+   * Acquire a lock for batch processing.
+   *
+   * @param int $batchId
+   * @return bool
+   */
+  private function acquireBatchLock( int $batchId ): bool
+  {
+    try
+    {
+      $now = date( 'Y-m-d H:i:s' );
+      $timeout = date( 'Y-m-d H:i:s', time() + $this->lockTimeout );
+
+      // Try to acquire lock using atomic update
+      $stmt = $this->pdo->prepare( "
+        UPDATE batches 
+        SET locked_at = ?, locked_by = ?, lock_timeout = ?
+        WHERE id = ? 
+        AND (locked_at IS NULL OR locked_at < ? OR locked_by = ?)
+      " );
+
+      $result = $stmt->execute( [
+        $now,
+        $this->processId,
+        $timeout,
+        $batchId,
+        $now, // Check for expired locks
+        $this->processId // Allow re-locking by same process
+      ] );
+
+      return $stmt->rowCount() > 0;
+    }
+    catch ( Exception $e )
+    {
+      error_log( "Error acquiring batch lock: " . $e->getMessage() );
+      return false;
+    } // try-catch
+
+  } // acquireBatchLock
+
+
+  /**
+   * Release a batch lock.
+   *
+   * @param int $batchId
+   * @return bool
+   */
+  private function releaseBatchLock( int $batchId ): bool
+  {
+    try
+    {
+      $stmt = $this->pdo->prepare( "
+        UPDATE batches 
+        SET locked_at = NULL, locked_by = NULL, lock_timeout = NULL
+        WHERE id = ? AND locked_by = ?
+      " );
+
+      return $stmt->execute( [ $batchId, $this->processId ] );
+    }
+    catch ( Exception $e )
+    {
+      error_log( "Error releasing batch lock: " . $e->getMessage() );
+      return false;
+    } // try-catch
+
+  } // releaseBatchLock
+
+
+  /**
+   * Process trades with concurrency control.
+   *
+   * @param int $batchId
+   * @param array $pendingTrades
+   */
+  private function processTradesWithConcurrency( int $batchId, array $pendingTrades ): void
+  {
+    $batch = $this->batchModel->find( $batchId );
+    $maxConcurrent = $batch->getAttribute( 'max_concurrent_trades' ) ?: 5;
+    $currentConcurrent = 0;
+
+    foreach ( $pendingTrades as $trade )
+    {
+      // Check if we can process more trades concurrently
+      while ( $currentConcurrent >= $maxConcurrent )
+      {
+        // Wait a bit and check again
+        usleep( 100000 ); // 100ms
+        $this->updateBatchConcurrencyCount( $batchId );
+        $batch = $this->batchModel->find( $batchId );
+        $currentConcurrent = $batch->getAttribute( 'current_concurrent_trades' ) ?: 0;
+      }
+
+      // Increment concurrent count
+      $this->incrementBatchConcurrencyCount( $batchId );
+      $currentConcurrent++;
+
+      // Process trade asynchronously (in real system, this would be a background job)
+      $this->executeTradeInBatch( $trade );
+
+      // Decrement concurrent count
+      $this->decrementBatchConcurrencyCount( $batchId );
+      $currentConcurrent--;
+    }
+  } // processTradesWithConcurrency
+
+
+  /**
+   * Update batch concurrency count.
+   *
+   * @param int $batchId
+   */
+  private function updateBatchConcurrencyCount( int $batchId ): void
+  {
+    try
+    {
+      $stmt = $this->pdo->prepare( "
+        UPDATE batches 
+        SET current_concurrent_trades = (
+          SELECT COUNT(*) 
+          FROM trades 
+          WHERE batch_id = ? AND status IN (?, ?)
+        )
+        WHERE id = ?
+      " );
+
+      $stmt->execute( [
+        $batchId,
+        Trade::STATUS_EXECUTING,
+        Trade::STATUS_QUOTED,
+        $batchId
+      ] );
+    }
+    catch ( Exception $e )
+    {
+      error_log( "Error updating batch concurrency count: " . $e->getMessage() );
+    } // try-catch
+
+  } // updateBatchConcurrencyCount
+
+
+  /**
+   * Increment batch concurrency count.
+   *
+   * @param int $batchId
+   */
+  private function incrementBatchConcurrencyCount( int $batchId ): void
+  {
+    try
+    {
+      $stmt = $this->pdo->prepare( "
+        UPDATE batches 
+        SET current_concurrent_trades = COALESCE(current_concurrent_trades, 0) + 1
+        WHERE id = ?
+      " );
+
+      $stmt->execute( [ $batchId ] );
+    }
+    catch ( Exception $e )
+    {
+      error_log( "Error incrementing batch concurrency count: " . $e->getMessage() );
+    } // try-catch
+
+  } // incrementBatchConcurrencyCount
+
+
+  /**
+   * Decrement batch concurrency count.
+   *
+   * @param int $batchId
+   */
+  private function decrementBatchConcurrencyCount( int $batchId ): void
+  {
+    try
+    {
+      $stmt = $this->pdo->prepare( "
+        UPDATE batches 
+        SET current_concurrent_trades = GREATEST(COALESCE(current_concurrent_trades, 0) - 1, 0)
+        WHERE id = ?
+      " );
+
+      $stmt->execute( [ $batchId ] );
+    }
+    catch ( Exception $e )
+    {
+      error_log( "Error decrementing batch concurrency count: " . $e->getMessage() );
+    } // try-catch
+
+  } // decrementBatchConcurrencyCount
+
+
+  /**
+   * Get next batch from queue for processing.
+   *
+   * @return int|null
+   */
+  public function getNextBatchFromQueue(): ?int
+  {
+    try
+    {
+      $stmt = $this->pdo->prepare( "
+        SELECT id FROM batches 
+        WHERE status = ? 
+        AND (locked_at IS NULL OR locked_at < ?)
+        ORDER BY priority DESC, queue_position ASC, created_at ASC
+        LIMIT 1
+      " );
+
+      $stmt->execute( [ Batch::STATUS_PENDING, date( 'Y-m-d H:i:s' ) ] );
+      $result = $stmt->fetchColumn();
+
+      return $result ? (int)$result : null;
+    }
+    catch ( Exception $e )
+    {
+      error_log( "Error getting next batch from queue: " . $e->getMessage() );
+      return null;
+    } // try-catch
+
+  } // getNextBatchFromQueue
+
+
+  /**
+   * Clean up expired locks.
+   */
+  public function cleanupExpiredLocks(): int
+  {
+    try
+    {
+      $stmt = $this->pdo->prepare( "
+        UPDATE batches 
+        SET locked_at = NULL, locked_by = NULL, lock_timeout = NULL
+        WHERE locked_at < ?
+      " );
+
+      $stmt->execute( [ date( 'Y-m-d H:i:s' ) ] );
+      return $stmt->rowCount();
+    }
+    catch ( Exception $e )
+    {
+      error_log( "Error cleaning up expired locks: " . $e->getMessage() );
+      return 0;
+    } // try-catch
+
+  } // cleanupExpiredLocks
+
+
+  /**
+   * Set batch priority.
+   *
+   * @param int $batchId
+   * @param int $priority (1-10, higher is more important)
+   * @return bool
+   */
+  public function setBatchPriority( int $batchId, int $priority ): bool
+  {
+    try
+    {
+      $priority = max( 1, min( 10, $priority ) ); // Clamp between 1-10
+      
+      $stmt = $this->pdo->prepare( "
+        UPDATE batches 
+        SET priority = ?
+        WHERE id = ?
+      " );
+
+      return $stmt->execute( [ $priority, $batchId ] );
+    }
+    catch ( Exception $e )
+    {
+      error_log( "Error setting batch priority: " . $e->getMessage() );
+      return false;
+    } // try-catch
+
+  } // setBatchPriority
+
+
+  /**
+   * Get batches that are currently locked.
+   *
+   * @return array
+   */
+  public function getLockedBatches(): array
+  {
+    try
+    {
+      $stmt = $this->pdo->prepare( "
+        SELECT id, batch_uid, locked_at, locked_by, lock_timeout, status
+        FROM batches 
+        WHERE locked_at IS NOT NULL
+        ORDER BY locked_at ASC
+      " );
+
+      $stmt->execute();
+      return $stmt->fetchAll( PDO::FETCH_ASSOC );
+    }
+    catch ( Exception $e )
+    {
+      error_log( "Error getting locked batches: " . $e->getMessage() );
+      return [];
+    } // try-catch
+
+  } // getLockedBatches
 
 } // BatchService

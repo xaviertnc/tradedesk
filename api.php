@@ -167,6 +167,12 @@ try {
     case 'upload_batch_csv': handleUploadBatchCsv( $db ); break;
     case 'cancel_batch': handleCancelBatch( $db ); break;
     case 'delete_batch': handleDeleteBatch( $db ); break;
+    case 'get_active_batches': handleGetActiveBatches( $db ); break;
+    case 'get_recent_batches': handleGetRecentBatches( $db ); break;
+    case 'get_locked_batches': handleGetLockedBatches( $db ); break;
+    case 'set_batch_priority': handleSetBatchPriority( $db ); break;
+    case 'cleanup_expired_locks': handleCleanupExpiredLocks( $db ); break;
+    case 'get_next_batch_from_queue': handleGetNextBatchFromQueue( $db ); break;
     case 'get_market_analysis': handleGetMarketAnalysis( $db ); break;
     case 'verify_schema': handleVerifySchema( $db ); break;
     default:
@@ -809,3 +815,111 @@ function handleDeleteBatch( $db ) {
     echo json_encode( [ 'success' => false, 'message' => 'Failed to delete batch: ' . $e->getMessage() ] );
   }
 } // handleDeleteBatch
+
+
+function handleGetActiveBatches( $db ) {
+  try {
+    $batchService = new BatchService( $db );
+    $activeBatches = $batchService->getActiveBatches();
+    echo json_encode( [ 'success' => true, 'batches' => $activeBatches ] );
+  } catch ( Exception $e ) {
+    http_response_code( 500 );
+    echo json_encode( [ 'success' => false, 'message' => 'Failed to get active batches: ' . $e->getMessage() ] );
+  }
+} // handleGetActiveBatches
+
+
+function handleGetRecentBatches( $db ) {
+  $limit = $_GET['limit'] ?? 10;
+  try {
+    $batchService = new BatchService( $db );
+    $recentBatches = $batchService->getRecentCompletedBatches( (int)$limit );
+    echo json_encode( [ 'success' => true, 'batches' => $recentBatches ] );
+  } catch ( Exception $e ) {
+    http_response_code( 500 );
+    echo json_encode( [ 'success' => false, 'message' => 'Failed to get recent batches: ' . $e->getMessage() ] );
+  }
+} // handleGetRecentBatches
+
+
+function handleGetLockedBatches( $db ) {
+  try {
+    $batchService = new BatchService( $db );
+    $lockedBatches = $batchService->getLockedBatches();
+    echo json_encode( [ 'success' => true, 'batches' => $lockedBatches ] );
+  } catch ( Exception $e ) {
+    http_response_code( 500 );
+    echo json_encode( [ 'success' => false, 'message' => 'Failed to get locked batches: ' . $e->getMessage() ] );
+  }
+} // handleGetLockedBatches
+
+
+function handleSetBatchPriority( $db ) {
+  $batchId = $_POST['batch_id'] ?? null;
+  $priority = $_POST['priority'] ?? null;
+  
+  if ( !$batchId || !$priority ) {
+    http_response_code( 400 );
+    echo json_encode( [ 'success' => false, 'message' => 'Batch ID and priority are required.' ] );
+    return;
+  }
+
+  try {
+    $batchService = new BatchService( $db );
+    $success = $batchService->setBatchPriority( (int)$batchId, (int)$priority );
+    
+    if ( $success ) {
+      echo json_encode( [ 
+        'success' => true, 
+        'message' => 'Batch priority updated successfully.' 
+      ] );
+    } else {
+      http_response_code( 400 );
+      echo json_encode( [ 'success' => false, 'message' => 'Failed to update batch priority.' ] );
+    }
+  } catch ( Exception $e ) {
+    http_response_code( 500 );
+    echo json_encode( [ 'success' => false, 'message' => 'Error updating batch priority: ' . $e->getMessage() ] );
+  }
+} // handleSetBatchPriority
+
+
+function handleCleanupExpiredLocks( $db ) {
+  try {
+    $batchService = new BatchService( $db );
+    $cleanedCount = $batchService->cleanupExpiredLocks();
+    echo json_encode( [ 
+      'success' => true, 
+      'message' => "Cleaned up {$cleanedCount} expired locks.",
+      'cleaned_count' => $cleanedCount
+    ] );
+  } catch ( Exception $e ) {
+    http_response_code( 500 );
+    echo json_encode( [ 'success' => false, 'message' => 'Failed to cleanup expired locks: ' . $e->getMessage() ] );
+  }
+} // handleCleanupExpiredLocks
+
+
+function handleGetNextBatchFromQueue( $db ) {
+  try {
+    $batchService = new BatchService( $db );
+    $nextBatchId = $batchService->getNextBatchFromQueue();
+    
+    if ( $nextBatchId ) {
+      echo json_encode( [ 
+        'success' => true, 
+        'next_batch_id' => $nextBatchId,
+        'message' => 'Next batch found in queue.'
+      ] );
+    } else {
+      echo json_encode( [ 
+        'success' => true, 
+        'next_batch_id' => null,
+        'message' => 'No batches in queue.'
+      ] );
+    }
+  } catch ( Exception $e ) {
+    http_response_code( 500 );
+    echo json_encode( [ 'success' => false, 'message' => 'Failed to get next batch from queue: ' . $e->getMessage() ] );
+  }
+} // handleGetNextBatchFromQueue

@@ -47,11 +47,11 @@
   - [x] **2.3.3** Create batch result aggregation logic
   - [x] **2.3.4** Add error handling and partial success detection
 
-- [ ] **2.4** Implement concurrent batch handling
-  - [ ] **2.4.1** Add batch locking mechanisms
-  - [ ] **2.4.2** Implement batch queue management
-  - [ ] **2.4.3** Add batch priority handling
-  - [ ] **2.4.4** Test multiple simultaneous batches
+- [x] **2.4** Implement concurrent batch handling
+  - [x] **2.4.1** Add batch locking mechanisms
+  - [x] **2.4.2** Implement batch queue management
+  - [x] **2.4.3** Add batch priority handling
+  - [x] **2.4.4** Test multiple simultaneous batches
 
 ---
 
@@ -61,8 +61,8 @@
 - [x] **3.1** Create batch query endpoints
   - [x] **3.1.1** `GET /api/batches` - List all batches with filters (`get_batches` action)
   - [x] **3.1.2** `GET /api/batches/{id}` - Get specific batch details (`get_batch` action)
-  - [ ] **3.1.3** `GET /api/batches/active` - Get currently running batches
-  - [ ] **3.1.4** `GET /api/batches/recent` - Get recent batch history
+  - [x] **3.1.3** `GET /api/batches/active` - Get currently running batches
+- [x] **3.1.4** `GET /api/batches/recent` - Get recent batch history
 
 - [x] **3.2** Create batch management endpoints
   - [x] **3.2.1** `POST /api/batches` - Start new batch (`stage_batch` action)
