@@ -45,6 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if ( tabName === 'accounts' ) loadBankAccounts();
       if ( tabName === 'settings' ) loadMigrationsAndVerifySchema();
       if ( tabName === 'trade' ) loadClientsForTrading();
+      if ( tabName === 'batches' ) loadBatches();
     }
   
     // --- Settings Management ---
@@ -364,12 +365,143 @@ document.addEventListener('DOMContentLoaded', () => {
         stagedList.insertAdjacentHTML('beforeend', row);
       });
     }
+
+
+    // --- Batch Management ---
+    async function loadBatches() {
+      try {
+        const response = await fetch(`${API_URL}?action=get_batches`);
+        const result = await response.json();
+        
+        if ( !result.success ) {
+          throw new Error(result.message || 'Failed to load batches');
+        }
+
+        const batchList = document.getElementById('batch-list');
+        batchList.innerHTML = '';
+        
+        if ( result.batches.length === 0 ) {
+          batchList.innerHTML = `<tr><td colspan="7" class="text-center py-4">No batches found. Create a new batch or upload a CSV file.</td></tr>`;
+        } else {
+          result.batches.forEach(batch => {
+            const statusClass = getStatusClass(batch.status);
+            const createdDate = new Date(batch.created_at).toLocaleString();
+            
+            const row = `
+              <tr class="batch-row" data-batch-id="${batch.id}">
+                <td class="px-6 py-4 whitespace-nowrap font-mono text-sm">${batch.batch_uid}</td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">
+                    ${batch.status}
+                  </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm">${batch.total_trades}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm">${batch.processed_trades}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm">${batch.failed_trades}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm">${createdDate}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  <button class="btn-view-batch text-indigo-600 hover:text-indigo-900">View</button>
+                </td>
+              </tr>
+            `;
+            batchList.insertAdjacentHTML('beforeend', row);
+          });
+        }
+      } catch ( error ) {
+        console.error('Error loading batches:', error);
+        showToast('Could not load batches.', true);
+      }
+    }
+
+
+    function getStatusClass(status) {
+      switch ( status.toUpperCase() ) {
+        case 'PENDING':
+          return 'bg-yellow-100 text-yellow-800';
+        case 'PROCESSING':
+          return 'bg-blue-100 text-blue-800';
+        case 'COMPLETED':
+          return 'bg-green-100 text-green-800';
+        case 'FAILED':
+          return 'bg-red-100 text-red-800';
+        case 'STAGED':
+          return 'bg-purple-100 text-purple-800';
+        default:
+          return 'bg-gray-100 text-gray-800';
+      }
+    }
+
+
+    async function viewBatchDetails(batchId) {
+      try {
+        const response = await fetch(`${API_URL}?action=get_batch&id=${batchId}`);
+        const result = await response.json();
+        
+        if ( !result.success ) {
+          throw new Error(result.message || 'Failed to load batch details');
+        }
+
+        // For now, just show the batch details in an alert
+        // In a real app, you'd show this in a modal or separate page
+        const batch = result.batch;
+        const trades = result.trades;
+        
+        let details = `Batch: ${batch.batch_uid}\n`;
+        details += `Status: ${batch.status}\n`;
+        details += `Total Trades: ${batch.total_trades}\n`;
+        details += `Processed: ${batch.processed_trades}\n`;
+        details += `Failed: ${batch.failed_trades}\n\n`;
+        details += `Trades:\n`;
+        
+        trades.forEach((trade, index) => {
+          details += `${index + 1}. ${trade.client_name} (${trade.cif_number}) - ${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(trade.amount_zar)} - ${trade.status}\n`;
+        });
+        
+        alert(details);
+      } catch ( error ) {
+        console.error('Error loading batch details:', error);
+        showToast('Could not load batch details.', true);
+      }
+    }
   
     // --- Event Listeners ---
     
     document.querySelectorAll('.tab-button').forEach(button => {
       button.addEventListener('click', () => showTab(button.dataset.tab));
     });
+
+    // --- Settings Form Submission ---
+    document.getElementById('settings-form').addEventListener('submit', async (e) => {
+      e.preventDefault(); // Prevent default form submission
+      
+      const form = e.target;
+      const formData = new FormData(form);
+      const submitButton = form.querySelector('button[type="submit"]');
+      
+      submitButton.disabled = true;
+      submitButton.textContent = 'Saving...';
+
+      try {
+        const response = await fetch(`${API_URL}?action=save_config`, {
+          method: 'POST',
+          body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          showToast('Settings saved successfully!');
+        } else {
+          throw new Error(result.message || 'Failed to save settings');
+        }
+      } catch (error) {
+        console.error('Error saving settings:', error);
+        showToast(`Error: ${error.message}`, true);
+      } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = 'Save Settings';
+      }
+    });    
   
     document.getElementById('add-client-btn').addEventListener('click', () => openClientModal());
     document.getElementById('cancel-modal-btn').addEventListener('click', closeClientModal);
@@ -411,7 +543,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         const result = await response.json();
          if ( result.success ) {
-          showToast(`${result.imported_count} clients imported successfully! Please review and add any missing account numbers.`);
+          showToast(`${result.imported} clients imported successfully! Please review and add any missing account numbers.`);
           loadClients();
         } else {
           throw new Error(result.message || 'Failed to import CSV.');
@@ -569,6 +701,56 @@ document.addEventListener('DOMContentLoaded', () => {
         analysisContent.classList.add('text-red-500');
       } finally {
         analysisLoader.classList.add('hidden');
+      }
+    });
+
+
+    // --- Batch Management Event Listeners ---
+    document.getElementById('upload-batch-csv-btn').addEventListener('click', () => {
+      document.getElementById('batch-csv-file').click();
+    });
+
+
+    document.getElementById('refresh-batches-btn').addEventListener('click', () => {
+      loadBatches();
+    });
+
+
+    document.getElementById('batch-csv-file').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if ( !file ) return;
+      
+      const formData = new FormData();
+      formData.append('csv', file);
+      
+      try {
+        const response = await fetch(`${API_URL}?action=upload_batch_csv`, {
+          method: 'POST',
+          body: formData
+        });
+        const result = await response.json();
+        
+        if ( result.success ) {
+          showToast('Batch uploaded successfully!');
+          loadBatches();
+        } else {
+          throw new Error(result.message || 'Failed to upload batch CSV.');
+        }
+      } catch ( error ) {
+        console.error('Error uploading batch CSV:', error);
+        showToast(error.message, true);
+      }
+      
+      e.target.value = '';
+    });
+
+
+    // Delegated event listener for batch actions
+    document.getElementById('batch-list').addEventListener('click', (e) => {
+      if ( e.target.classList.contains('btn-view-batch') ) {
+        const row = e.target.closest('.batch-row');
+        const batchId = row.dataset.batchId;
+        viewBatchDetails(batchId);
       }
     });
   

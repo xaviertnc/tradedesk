@@ -1,8 +1,18 @@
 <?php
-// CapitecApiService.php
-
 /**
- * Handles all business logic for communicating with the Capitec Forex endpoints.
+ * CapitecApiService.php
+ *
+ * Capitec API Service - 09 Jul 2025
+ *
+ * Purpose: Handles all business logic for communicating with the Capitec Forex endpoints.
+ *
+ * @package FXBatchTrader
+ *
+ * @author Xavier TNC <xavier@tnc.com>
+ *
+ * Last 3 version commits:
+ * @version 1.1 - FIX - 09 Jul 2025 - Fix Content-Type header for bulk-balance API call
+ * @version 1.0 - INIT - 28 Jun 2025 - Initial commit
  */
 class CapitecApiService {
     private PDO $db;
@@ -72,7 +82,10 @@ class CapitecApiService {
                 'page' => $page,
                 'size' => 100
             ];
-            $apiHeaders = ['Authorization: Bearer ' . $accessToken];
+            $apiHeaders = [
+                'Content-Type: application/json',
+                'Authorization: Bearer ' . $accessToken
+            ];
             $balanceData = $this->httpClient->sendRequest($balanceUrl, 'POST', $balancePayload, $apiHeaders);
 
             if (isset($balanceData['payload']['content'])) {

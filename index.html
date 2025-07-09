@@ -23,6 +23,7 @@
           <button class="tab-button" data-tab="clients">Clients</button>
           <button class="tab-button" data-tab="accounts">Bank Accounts</button>
           <button class="tab-button" data-tab="trade">Trade</button>
+          <button class="tab-button" data-tab="batches">Batches</button>
           <button class="tab-button" data-tab="history">History</button>
         </nav>
       </div>
@@ -240,6 +241,38 @@
                 <button id="execute-trades-btn" class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 disabled:opacity-50" disabled>Execute Trades</button>
                 <button id="cancel-batch-btn" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">Cancel Batch</button>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Batches Tab -->
+        <div id="batches" class="tab-content hidden">
+          <div class="bg-white p-6 rounded-lg shadow-sm">
+            <div class="flex justify-between items-center mb-4">
+              <h2 class="text-xl font-semibold">Batch Management</h2>
+              <div>
+                <input type="file" id="batch-csv-file" accept=".csv" class="hidden">
+                <button id="upload-batch-csv-btn" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 mr-2">Upload CSV Batch</button>
+                <button id="refresh-batches-btn" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">Refresh</button>
+              </div>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Batch ID</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Trades</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Processed</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Failed</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="batch-list" class="bg-white divide-y divide-gray-200">
+                  <!-- Populated by JavaScript -->
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

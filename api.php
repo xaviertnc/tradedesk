@@ -27,6 +27,7 @@ require_once __DIR__ . '/HttpClientService.php';
 require_once __DIR__ . '/CapitecApiService.php';
 require_once __DIR__ . '/MigrationService.php';
 require_once __DIR__ . '/GeminiApiService.php';
+require_once __DIR__ . '/BatchService.php';
 
 // --- Server-Side Logging ---
 function debug_log( $var, $pretext = '', $minDebugLevel = 1, $type = 'DEBUG', $format = 'text' ) {
@@ -153,6 +154,9 @@ try {
     case 'run_migration': handleRunMigration( $db ); break;
     case 'stage_batch': handleStageBatch( $db ); break;
     case 'import_trades_batch': handleImportTradesBatch( $db ); break; // New Action
+    case 'get_batches': handleGetBatches( $db ); break;
+    case 'get_batch': handleGetBatch( $db ); break;
+    case 'upload_batch_csv': handleUploadBatchCsv( $db ); break;
     case 'get_market_analysis': handleGetMarketAnalysis( $db ); break;
     case 'verify_schema': handleVerifySchema( $db ); break;
     default:
@@ -519,4 +523,120 @@ function handleVerifySchema( $db ) {
   $isValid = empty( $errors['missing_tables'] ) && empty( $errors['missing_columns'] );
   if ( !$isValid ) http_response_code( 400 );
   echo json_encode( [ 'success' => true, 'is_valid' => $isValid, 'errors' => $errors ] );
+}
+
+
+function handleGetBatches( $db ) {
+  try {
+    $stmt = $db->query( "
+      SELECT 
+        b.id,
+        b.batch_uid,
+        b.status,
+        b.total_trades,
+        b.processed_trades,
+        b.failed_trades,
+        b.created_at,
+        b.updated_at
+      FROM batches b 
+      ORDER BY b.created_at DESC
+    " );
+    $batches = $stmt->fetchAll();
+    echo json_encode( [ 'success' => true, 'batches' => $batches ] );
+  } catch ( Exception $e ) {
+    http_response_code( 500 );
+    echo json_encode( [ 'success' => false, 'message' => 'Failed to fetch batches: ' . $e->getMessage() ] );
+  }
+}
+
+
+function handleGetBatch( $db ) {
+  $batchId = $_GET['id'] ?? null;
+  if ( !$batchId ) {
+    http_response_code( 400 );
+    echo json_encode( [ 'success' => false, 'message' => 'Batch ID is required.' ] );
+    return;
+  }
+
+  try {
+    // Get batch details
+    $batchStmt = $db->prepare( "
+      SELECT 
+        b.id,
+        b.batch_uid,
+        b.status,
+        b.total_trades,
+        b.processed_trades,
+        b.failed_trades,
+        b.created_at,
+        b.updated_at
+      FROM batches b 
+      WHERE b.id = ?
+    " );
+    $batchStmt->execute( [ $batchId ] );
+    $batch = $batchStmt->fetch();
+
+    if ( !$batch ) {
+      http_response_code( 404 );
+      echo json_encode( [ 'success' => false, 'message' => 'Batch not found.' ] );
+      return;
+    }
+
+    // Get trades for this batch
+    $tradesStmt = $db->prepare( "
+      SELECT 
+        t.id,
+        t.client_id,
+        t.status,
+        t.status_message,
+        t.quote_id,
+        t.quote_rate,
+        t.amount_zar,
+        t.bank_trxn_id,
+        t.deal_ref,
+        t.last_error,
+        t.created_at,
+        c.name as client_name,
+        c.cif_number
+      FROM trades t
+      LEFT JOIN clients c ON t.client_id = c.id
+      WHERE t.batch_id = ?
+      ORDER BY t.created_at ASC
+    " );
+    $tradesStmt->execute( [ $batchId ] );
+    $trades = $tradesStmt->fetchAll();
+
+    echo json_encode( [ 
+      'success' => true, 
+      'batch' => $batch,
+      'trades' => $trades 
+    ] );
+  } catch ( Exception $e ) {
+    http_response_code( 500 );
+    echo json_encode( [ 'success' => false, 'message' => 'Failed to fetch batch: ' . $e->getMessage() ] );
+  }
+}
+
+
+function handleUploadBatchCsv( $db ) {
+  if ( !isset( $_FILES['csv'] ) || $_FILES['csv']['error'] !== UPLOAD_ERR_OK ) {
+    http_response_code( 400 );
+    echo json_encode( [ 'success' => false, 'message' => 'CSV file upload failed.' ] );
+    return;
+  }
+
+  try {
+    $batchService = new BatchService( $db );
+    $csvFilePath = $_FILES['csv']['tmp_name'];
+    $batchId = $batchService->createBatchFromCsv( $csvFilePath );
+    
+    echo json_encode( [ 
+      'success' => true, 
+      'message' => 'Batch created successfully from CSV.',
+      'batch_id' => $batchId 
+    ] );
+  } catch ( Exception $e ) {
+    http_response_code( 500 );
+    echo json_encode( [ 'success' => false, 'message' => 'Failed to create batch: ' . $e->getMessage() ] );
+  }
 }

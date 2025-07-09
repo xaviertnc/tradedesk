@@ -46,6 +46,8 @@ class BatchService
     }
 
     $totalTrades = count( $trades );
+    $batch_uid = 'batch_' . time();
+    $now = date( 'Y-m-d H:i:s' );
 
     $this->pdo->beginTransaction();
 
@@ -53,26 +55,45 @@ class BatchService
     {
       // 1. Create a new batch record
       $stmt = $this->pdo->prepare(
-        "INSERT INTO batches (total_trades, status) VALUES (?, 'PENDING')"
+        "INSERT INTO batches (batch_uid, status, total_trades, created_at) VALUES (?, 'PENDING', ?, ?)"
       );
-      $stmt->execute( [ $totalTrades ] );
+      $stmt->execute( [ $batch_uid, $totalTrades, $now ] );
       $batchId = $this->pdo->lastInsertId();
 
       // 2. Prepare statement for inserting trades
       $tradeStmt = $this->pdo->prepare(
-        "INSERT INTO trades (batch_id, source_currency, source_amount, destination_currency, status)
-         VALUES (?, ?, ?, ?, 'PENDING')"
+        "INSERT INTO trades (batch_id, client_id, amount_zar, status, created_at)
+         VALUES (?, ?, ?, 'PENDING', ?)"
       );
 
-      // 3. Insert each trade from the CSV
+      // 3. Prepare statement for finding client by CIF
+      $clientStmt = $this->pdo->prepare( "SELECT id FROM clients WHERE cif_number = ?" );
+
+      // 4. Insert each trade from the CSV
       foreach ( $trades as $trade )
       {
-        // Assuming CSV format: Source Currency, Source Amount, Destination Currency
-        $sourceCurrency = $trade[0] ?? null;
-        $sourceAmount = $trade[1] ?? null;
-        $destinationCurrency = $trade[2] ?? null;
+        // Assuming CSV format: Client CIF, Amount ZAR
+        $cifNumber = $trade[0] ?? null;
+        $amountZar = $trade[1] ?? null;
 
-        $tradeStmt->execute( [ $batchId, $sourceCurrency, $sourceAmount, $destinationCurrency ] );
+        if ( empty( $cifNumber ) || ! is_numeric( $amountZar ) || $amountZar <= 0 )
+        {
+          continue; // Skip invalid rows
+        }
+
+        // Find client by CIF number
+        $clientStmt->execute( [ $cifNumber ] );
+        $clientId = $clientStmt->fetchColumn();
+
+        if ( $clientId )
+        {
+          $tradeStmt->execute( [ $batchId, $clientId, $amountZar, $now ] );
+        }
+        else
+        {
+          // Log unknown CIF numbers but continue processing
+          error_log( "Unknown CIF number in CSV: {$cifNumber}" );
+        }
       }
 
       $this->pdo->commit();
@@ -82,8 +103,6 @@ class BatchService
     catch ( Exception $e )
     {
       $this->pdo->rollBack();
-      // In a real app, you'd log this error properly.
-      // debug_log( $e->getMessage(), 'Batch Creation Failed' );
       throw new Exception( 'Failed to create batch: ' . $e->getMessage() );
     } // try-catch
 
