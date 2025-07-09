@@ -168,8 +168,18 @@ def get_batch_details(batch_id):
 
 ### **Summary of Next Steps**
 
-* **Design/implement Batch model and persist it.**
-* **Link trades to batches.**
-* **Implement async/concurrent batch handling.**
-* **Expose query APIs for batch/trade status/history.**
-* **UI: Add batch dashboard and history view.**
+* **✅ COMPLETED:**
+  * ✅ Database schema with batches table and batch_id foreign key
+  * ✅ Basic BatchService class with CSV import functionality
+  * ✅ Core API endpoints (get_batches, get_batch, stage_batch)
+  * ✅ Basic frontend UI for batch management
+  * ✅ Migration scripts with rollback functionality
+
+* **🔄 NEXT PRIORITIES:**
+  * 🔄 **Create proper Batch and Trade model classes** (Milestone 1.2-1.3)
+  * 🔄 **Implement async batch processing** (Milestone 2.2)
+  * 🔄 **Add batch state management and completion detection** (Milestone 2.3)
+  * 🔄 **Implement batch progress tracking** (Milestone 3.3)
+  * 🔄 **Add batch cancellation and deletion endpoints** (Milestone 3.2.2-3.2.3)
+  * 🔄 **Create proper batch detail components** (Milestone 4.3)
+  * 🔄 **Integrate with existing trade execution** (Milestone 5.1)
