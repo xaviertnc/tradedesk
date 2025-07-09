@@ -206,15 +206,14 @@ function handleSaveClient( $db ) {
   $cif = $_POST['client-cif'] ?? '';
   $zar = $_POST['client-zar'] ?? '';
   $usd = $_POST['client-usd'] ?? '';
-  $spread = $_POST['client-spread'] ?? 0;
+  $spread = isset($_POST['client-spread']) ? (int)$_POST['client-spread'] : 0;
 
   // Ensure spread is integer (bips)
-  if ( empty( $name ) || empty( $cif ) || !is_numeric( $spread ) || intval($spread) != $spread ) {
+  if ( empty( $name ) || empty( $cif ) || $spread < 0 ) {
     http_response_code( 400 );
-    echo json_encode( [ 'success' => false, 'message' => 'Invalid data provided. Spread must be an integer (bips).' ] );
+    echo json_encode( [ 'success' => false, 'message' => 'Invalid data provided. Spread must be a non-negative integer (bips).' ] );
     return;
   }
-  $spread = intval($spread);
 
   try {
     if ( $id ) { // Update

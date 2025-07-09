@@ -144,7 +144,7 @@
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CIF Number</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ZAR Account</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">USD Account</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Spread (%)</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Spread (Bips)</th>
                     <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
@@ -267,11 +267,11 @@
           <div class="mt-2 px-7 py-3">
             <form id="client-form">
               <input type="hidden" id="client-id" name="id">
-              <input type="text" id="client-name" placeholder="Client Name" class="mb-3 mt-1 block w-full rounded-md border-gray-300 shadow-sm" required>
-              <input type="text" id="client-cif" placeholder="CIF Number" class="mb-3 mt-1 block w-full rounded-md border-gray-300 shadow-sm" required>
-              <input type="text" id="client-zar" placeholder="ZAR Account" class="mb-3 mt-1 block w-full rounded-md border-gray-300 shadow-sm" required>
-              <input type="text" id="client-usd" placeholder="USD Account" class="mb-3 mt-1 block w-full rounded-md border-gray-300 shadow-sm" required>
-              <input type="number" step="0.01" id="client-spread" placeholder="Spread (%)" class="mb-3 mt-1 block w-full rounded-md border-gray-300 shadow-sm" required>
+              <input type="text" id="client-name" name="client-name" placeholder="Client Name" class="mb-3 mt-1 block w-full rounded-md border-gray-300 shadow-sm" required>
+              <input type="text" id="client-cif" name="client-cif" placeholder="CIF Number" class="mb-3 mt-1 block w-full rounded-md border-gray-300 shadow-sm" required>
+              <input type="text" id="client-zar" name="client-zar" placeholder="ZAR Account" class="mb-3 mt-1 block w-full rounded-md border-gray-300 shadow-sm" required>
+              <input type="text" id="client-usd" name="client-usd" placeholder="USD Account" class="mb-3 mt-1 block w-full rounded-md border-gray-300 shadow-sm" required>
+              <input type="number" step="1" min="0" id="client-spread" name="client-spread" placeholder="Spread (Bips)" class="mb-3 mt-1 block w-full rounded-md border-gray-300 shadow-sm" required>
             </form>
           </div>
           <div class="items-center px-4 py-3">

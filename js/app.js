@@ -1,3 +1,18 @@
+/**
+ * js/app.js
+ *
+ * FX Batch Trader Frontend - 28 Jun 2025 ( Start Date )
+ *
+ * Purpose: Handles all UI and client-side logic for FX Batch Trader, including CRUD and batch trading.
+ *
+ * @package FXBatchTrader
+ *
+ * @author Your Name <email@domain.com>
+ *
+ * Last 3 version commits:
+ * @version 1.0 - INIT - 28 Jun 2025 - Initial commit
+ * @version x.x - FT|UPD - 29 Jun 2025 - Migrate spread to integer bips
+ */
 document.addEventListener('DOMContentLoaded', () => {
     const API_URL = './api.php';
   
@@ -362,7 +377,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('select-all-clients').addEventListener('change', (e) => toggleAllClients(e.target.checked));
     
     document.getElementById('save-client-btn').addEventListener('click', async () => {
-      const formData = new FormData(document.getElementById('client-form'));
+      const form = document.getElementById('client-form');
+      const spreadInput = document.getElementById('client-spread');
+      const formData = new FormData(form);
       try {
         const response = await fetch(`${API_URL}?action=save_client`, {
           method: 'POST',
