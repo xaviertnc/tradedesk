@@ -1,7 +1,18 @@
 <?php
 // SQLite Viewer SPA - Enhanced Edition
 $db_dir = dirname( __DIR__ ) . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR;
-$db_file = isset($_GET['db']) ? basename($_GET['db']) : $db_dir . 'tradedesk.db';
+if ( isset($_GET['db']) ) {
+    if ( basename($_GET['db']) != $_GET['db'] ) {
+        $db_file = $_GET['db'];
+        $db_name = basename($_GET['db']);
+    } else {
+        $db_file = $db_dir . $_GET['db'];
+        $db_name = $_GET['db'];
+    }
+} else {
+    $db_file = $db_dir . 'tradedesk.db';
+    $db_name = 'tradedesk.db';
+}
 $current_table = $_GET['table'] ?? null;
 $search_term = $_GET['search'] ?? '';
 $dark_mode = isset($_GET['dark']) ? filter_var($_GET['dark'], FILTER_VALIDATE_BOOLEAN) : false;
@@ -346,11 +357,11 @@ if ($custom_query && $db) {
     </style>
 </head>
 <body>
-    <h1>SQLite Viewer Pro</h1>
+    <h1><a href="?db=<?= urlencode($db_name) ?>&dark=<?= $dark_mode ? 'true' : 'false' ?>">SQLite Viewer</a></h1>
     
     <div class="container">
         <div class="sidebar">
-            <h3>Database: <?= htmlspecialchars($db_file) ?></h3>
+            <h3>Database: <?= htmlspecialchars($db_name) ?></h3>
             
             <?php if (!$db_exists): ?>
                 <p class="error">Database file not found.</p>
@@ -362,7 +373,7 @@ if ($custom_query && $db) {
                 <ul class="table-list">
                     <?php foreach ($tables as $table): ?>
                         <li <?= $table === $current_table ? 'class="active"' : '' ?>>
-                            <a href="?db=<?= urlencode($db_file) ?>&table=<?= urlencode($table) ?>&dark=<?= $dark_mode ? 'true' : 'false' ?>">
+                            <a href="?db=<?= urlencode($db_name) ?>&table=<?= urlencode($table) ?>&dark=<?= $dark_mode ? 'true' : 'false' ?>">
                                 <?= htmlspecialchars($table) ?>
                             </a>
                         </li>
@@ -371,7 +382,7 @@ if ($custom_query && $db) {
             <?php endif; ?>
             
             <div style="margin-top: 20px;">
-                <a href="?db=<?= urlencode($db_file) ?>&dark=<?= !$dark_mode ? 'true' : 'false' ?><?= $current_table ? '&table='.urlencode($current_table) : '' ?>"
+                <a href="?db=<?= urlencode($db_name) ?>&dark=<?= !$dark_mode ? 'true' : 'false' ?><?= $current_table ? '&table='.urlencode($current_table) : '' ?>"
                    class="btn btn-dark">
                     <?= $dark_mode ? '☀️ Light Mode' : '🌙 Dark Mode' ?>
                 </a>
@@ -382,22 +393,22 @@ if ($custom_query && $db) {
             <?php if ($current_table && in_array($current_table, $tables)): ?>
                 <div class="toolbar">
                     <form method="get" class="search-box">
-                        <input type="hidden" name="db" value="<?= htmlspecialchars($db_file) ?>">
+                        <input type="hidden" name="db" value="<?= htmlspecialchars($db_name) ?>">
                         <input type="hidden" name="table" value="<?= htmlspecialchars($current_table) ?>">
                         <input type="hidden" name="dark" value="<?= $dark_mode ? 'true' : 'false' ?>">
                         <input type="text" name="search" value="<?= htmlspecialchars($search_term) ?>" 
                                placeholder="Search in table...">
                         <button type="submit" class="btn">Search</button>
                         <?php if ($search_term): ?>
-                            <a href="?db=<?= urlencode($db_file) ?>&table=<?= urlencode($current_table) ?>&dark=<?= $dark_mode ? 'true' : 'false' ?>" 
+                            <a href="?db=<?= urlencode($db_name) ?>&table=<?= urlencode($current_table) ?>&dark=<?= $dark_mode ? 'true' : 'false' ?>" 
                                class="btn">Clear</a>
                         <?php endif; ?>
                     </form>
                     
                     <div>
-                        <a href="?db=<?= urlencode($db_file) ?>&table=<?= urlencode($current_table) ?>&export=csv&dark=<?= $dark_mode ? 'true' : 'false' ?>" 
+                        <a href="?db=<?= urlencode($db_name) ?>&table=<?= urlencode($current_table) ?>&export=csv&dark=<?= $dark_mode ? 'true' : 'false' ?>" 
                            class="btn btn-export">Export CSV</a>
-                        <a href="?db=<?= urlencode($db_file) ?>&table=<?= urlencode($current_table) ?>&export=json&dark=<?= $dark_mode ? 'true' : 'false' ?>" 
+                        <a href="?db=<?= urlencode($db_name) ?>&table=<?= urlencode($current_table) ?>&export=json&dark=<?= $dark_mode ? 'true' : 'false' ?>" 
                            class="btn btn-export">Export JSON</a>
                     </div>
                 </div>
@@ -451,7 +462,7 @@ if ($custom_query && $db) {
                 
                 <div id="query-tab" class="tab-content active">
                     <form method="post">
-                        <input type="hidden" name="db" value="<?= htmlspecialchars($db_file) ?>">
+                        <input type="hidden" name="db" value="<?= htmlspecialchars($db_name) ?>">
                         <input type="hidden" name="dark" value="<?= $dark_mode ? 'true' : 'false' ?>">
                         <textarea name="custom_query" class="sql-editor" placeholder="Enter your SQL query here..."><?= htmlspecialchars($custom_query ?? '') ?></textarea>
                         <button type="submit" class="btn">Execute</button>
