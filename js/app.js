@@ -409,7 +409,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm">${createdDate}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <button class="btn-view-batch text-indigo-600 hover:text-indigo-900">View</button>
+                  <button class="btn-view-batch text-indigo-600 hover:text-indigo-900 mr-2">View</button>
+                  ${batch.status === 'PENDING' ? `<button class="btn-start-batch text-green-600 hover:text-green-900">Start</button>` : ''}
                 </td>
               </tr>
             `;
@@ -444,6 +445,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     async function viewBatchDetails(batchId) {
+      const modal = document.getElementById('batch-detail-modal');
+      const loader = document.getElementById('batch-summary-loader');
+      const content = document.getElementById('batch-summary-content');
+      
+      // Show modal and loader
+      modal.classList.remove('hidden');
+      loader.classList.remove('hidden');
+      content.classList.add('hidden');
+
       try {
         const response = await fetch(`${API_URL}?action=get_batch&id=${batchId}`);
         const result = await response.json();
@@ -452,26 +462,157 @@ document.addEventListener('DOMContentLoaded', () => {
           throw new Error(result.message || 'Failed to load batch details');
         }
 
-        // For now, just show the batch details in an alert
-        // In a real app, you'd show this in a modal or separate page
         const batch = result.batch;
         const trades = result.trades;
         
-        let details = `Batch: ${batch.batch_uid}\n`;
-        details += `Status: ${batch.status}\n`;
-        details += `Total Trades: ${batch.total_trades}\n`;
-        details += `Processed: ${batch.processed_trades}\n`;
-        details += `Failed: ${batch.failed_trades}\n\n`;
-        details += `Trades:\n`;
+        // Update batch summary
+        document.getElementById('batch-uid').textContent = batch.batch_uid;
+        document.getElementById('batch-status').textContent = batch.status;
+        document.getElementById('batch-total-trades').textContent = batch.total_trades;
+        document.getElementById('batch-created').textContent = new Date(batch.created_at).toLocaleString();
         
-        trades.forEach((trade, index) => {
-          details += `${index + 1}. ${trade.client_name} (${trade.cif_number}) - ${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(trade.amount_zar)} - ${trade.status}\n`;
+        // Update progress
+        const progressPercentage = batch.total_trades > 0 ? 
+          Math.round(((batch.processed_trades + batch.failed_trades) / batch.total_trades) * 100) : 0;
+        document.getElementById('batch-progress-text').textContent = `${progressPercentage}%`;
+        document.getElementById('batch-progress-bar').style.width = `${progressPercentage}%`;
+        
+        // Update statistics
+        const successCount = trades.filter(t => t.status === 'SUCCESS').length;
+        const failedCount = trades.filter(t => t.status === 'FAILED').length;
+        const pendingCount = trades.filter(t => ['PENDING', 'EXECUTING', 'QUOTED'].includes(t.status)).length;
+        
+        document.getElementById('batch-success-count').textContent = successCount;
+        document.getElementById('batch-failed-count').textContent = failedCount;
+        document.getElementById('batch-pending-count').textContent = pendingCount;
+        
+        // Update trades table
+        const tradesList = document.getElementById('batch-trades-list');
+        tradesList.innerHTML = '';
+        
+        trades.forEach(trade => {
+          const statusClass = getTradeStatusClass(trade.status);
+          const row = `
+            <tr>
+              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${trade.client_name || 'Unknown'}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${trade.cif_number || 'N/A'}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(trade.amount_zar)}</td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">
+                  ${trade.status}
+                </span>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${trade.quote_rate ? trade.quote_rate.toFixed(4) : 'N/A'}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">${trade.bank_trxn_id || 'N/A'}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${trade.status_message || 'N/A'}</td>
+            </tr>
+          `;
+          tradesList.insertAdjacentHTML('beforeend', row);
         });
         
-        alert(details);
+        // Store batch ID for refresh functionality
+        modal.dataset.batchId = batchId;
+        
+        // Hide loader and show content
+        loader.classList.add('hidden');
+        content.classList.remove('hidden');
+        
       } catch ( error ) {
         console.error('Error loading batch details:', error);
         showToast('Could not load batch details.', true);
+        modal.classList.add('hidden');
+      }
+    }
+
+
+    function getTradeStatusClass(status) {
+      switch ( status.toUpperCase() ) {
+        case 'PENDING':
+          return 'bg-yellow-100 text-yellow-800';
+        case 'EXECUTING':
+          return 'bg-blue-100 text-blue-800';
+        case 'QUOTED':
+          return 'bg-purple-100 text-purple-800';
+        case 'SUCCESS':
+          return 'bg-green-100 text-green-800';
+        case 'FAILED':
+          return 'bg-red-100 text-red-800';
+        case 'CANCELLED':
+          return 'bg-gray-100 text-gray-800';
+        default:
+          return 'bg-gray-100 text-gray-800';
+      }
+    }
+
+
+    async function viewBatchErrors(batchId) {
+      try {
+        const response = await fetch(`${API_URL}?action=get_batch_errors&id=${batchId}`);
+        const result = await response.json();
+        
+        if ( !result.success ) {
+          throw new Error(result.message || 'Failed to load batch errors');
+        }
+
+        const data = result.data;
+        
+        if ( data.total_failed === 0 ) {
+          alert('No errors found for this batch.');
+          return;
+        }
+
+        let errorDetails = `Batch: ${data.batch.batch_uid}\n`;
+        errorDetails += `Total Failed: ${data.total_failed}\n\n`;
+        errorDetails += `Error Summary:\n`;
+        
+        Object.entries(data.error_summary).forEach(([errorType, info]) => {
+          errorDetails += `\n${errorType} (${info.count} trades):\n`;
+          info.trades.forEach(trade => {
+            errorDetails += `  - ${trade.client_name} (${trade.client_cif}): ${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(trade.amount_zar)}\n`;
+          });
+        });
+        
+        alert(errorDetails);
+      } catch ( error ) {
+        console.error('Error loading batch errors:', error);
+        showToast('Could not load batch errors.', true);
+      }
+    }
+
+
+    async function startBatch(batchId, button) {
+      if ( !confirm('Are you sure you want to start processing this batch? This will execute all pending trades.') ) {
+        return;
+      }
+
+      const originalText = button.textContent;
+      button.textContent = 'Starting...';
+      button.disabled = true;
+
+      try {
+        const formData = new FormData();
+        formData.append('batch_id', batchId);
+        
+        const response = await fetch(`${API_URL}?action=start_batch`, {
+          method: 'POST',
+          body: formData
+        });
+        
+        const result = await response.json();
+        
+        if ( result.success ) {
+          showToast('Batch processing started successfully!');
+          // Refresh the batches list to show updated status
+          loadBatches();
+        } else {
+          throw new Error(result.message || 'Failed to start batch processing');
+        }
+      } catch ( error ) {
+        console.error('Error starting batch:', error);
+        showToast(error.message, true);
+      } finally {
+        button.textContent = originalText;
+        button.disabled = false;
       }
     }
   
@@ -763,10 +904,40 @@ document.addEventListener('DOMContentLoaded', () => {
         const batchId = row.dataset.batchId;
         viewBatchDetails(batchId);
       }
+      if ( e.target.classList.contains('btn-start-batch') ) {
+        const row = e.target.closest('.batch-row');
+        const batchId = row.dataset.batchId;
+        startBatch(batchId, e.target);
+      }
     });
   
     document.getElementById('close-analysis-modal-btn').addEventListener('click', () => {
       analysisModal.classList.add('hidden');
+    });
+
+    // Batch Detail Modal Event Listeners
+    document.getElementById('close-batch-modal-btn').addEventListener('click', () => {
+      document.getElementById('batch-detail-modal').classList.add('hidden');
+    });
+
+    document.getElementById('close-batch-modal-btn-2').addEventListener('click', () => {
+      document.getElementById('batch-detail-modal').classList.add('hidden');
+    });
+
+    document.getElementById('refresh-batch-details-btn').addEventListener('click', () => {
+      const modal = document.getElementById('batch-detail-modal');
+      const batchId = modal.dataset.batchId;
+      if ( batchId ) {
+        viewBatchDetails(batchId);
+      }
+    });
+
+    document.getElementById('view-batch-errors-btn').addEventListener('click', () => {
+      const modal = document.getElementById('batch-detail-modal');
+      const batchId = modal.dataset.batchId;
+      if ( batchId ) {
+        viewBatchErrors(batchId);
+      }
     });
   
     // Initial Load

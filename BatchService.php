@@ -390,7 +390,7 @@ class BatchService
 
 
   /**
-   * Get batch results summary.
+   * Get batch results with detailed trade information.
    *
    * @param int $batchId
    * @return array|null
@@ -402,35 +402,284 @@ class BatchService
       return null;
     }
 
-    // Update progress first
-    $this->updateBatchProgress( $batchId );
-    
-    // Get fresh batch data
-    $batch = $this->batchModel->find( $batchId );
-    
-    $summary = $batch->getSummary();
-    $trades = $this->getBatchTrades( $batchId );
-    
+    $trades = $batch->getTrades();
+    $tradeSummaries = [];
+
+    foreach ( $trades as $trade ) {
+      $tradeSummaries[] = $trade->getSummary();
+    }
+
     return [
-      'batch_id' => $batchId,
-      'batch_uid' => $batch->getAttribute( 'batch_uid' ),
-      'status' => $batch->getAttribute( 'status' ),
-      'summary' => $summary,
-      'trades' => array_map( function( $trade ) {
-        return [
-          'id' => $trade->getAttribute( 'id' ),
-          'client_id' => $trade->getAttribute( 'client_id' ),
-          'status' => $trade->getAttribute( 'status' ),
-          'status_message' => $trade->getAttribute( 'status_message' ),
-          'amount_zar' => $trade->getAttribute( 'amount_zar' ),
-          'quote_id' => $trade->getAttribute( 'quote_id' ),
-          'quote_rate' => $trade->getAttribute( 'quote_rate' ),
-          'bank_trxn_id' => $trade->getAttribute( 'bank_trxn_id' ),
-          'deal_ref' => $trade->getAttribute( 'deal_ref' ),
-          'created_at' => $trade->getAttribute( 'created_at' )
-        ];
-      }, $trades )
+      'batch' => $batch->getSummary(),
+      'trades' => $tradeSummaries,
+      'progress' => $this->getBatchProgress( $batchId )
     ];
   } // getBatchResults
+
+
+  /**
+   * Start async batch processing.
+   *
+   * @param int $batchId
+   * @return bool
+   */
+  public function runBatchAsync( int $batchId ): bool
+  {
+    $batch = $this->batchModel->find( $batchId );
+    if ( ! $batch ) {
+      return false;
+    }
+
+    // Update batch status to running
+    if ( ! $batch->updateStatus( Batch::STATUS_RUNNING ) ) {
+      return false;
+    }
+
+    // Get all pending trades in the batch
+    $trades = $this->tradeModel->findByBatchId( $batchId );
+    $pendingTrades = array_filter( $trades, function( $trade ) {
+      return $trade->getAttribute( 'status' ) === Trade::STATUS_PENDING;
+    } );
+
+    if ( empty( $pendingTrades ) ) {
+      // No pending trades, mark batch as completed
+      $this->updateBatchProgress( $batchId );
+      return true;
+    }
+
+    // Process trades asynchronously (in a real system, this would be a background job)
+    foreach ( $pendingTrades as $trade ) {
+      $this->executeTradeInBatch( $trade );
+    }
+
+    return true;
+  } // runBatchAsync
+
+
+  /**
+   * Execute a single trade within batch context.
+   *
+   * @param Trade $trade
+   * @return bool
+   */
+  private function executeTradeInBatch( Trade $trade ): bool
+  {
+    try
+    {
+      // Step 1: Update trade status to executing
+      $trade->updateStatus( Trade::STATUS_EXECUTING, 'Processing trade' );
+
+      // Step 2: Get client information
+      $client = $trade->getClient();
+      if ( ! $client ) {
+        $trade->updateStatus( Trade::STATUS_FAILED, 'Client not found' );
+        $this->onTradeCompleted( $trade );
+        return false;
+      }
+
+      // Step 3: Create quote (simulate API call)
+      $quoteResult = $this->createQuoteForTrade( $trade, $client );
+      if ( ! $quoteResult['success'] ) {
+        $trade->updateStatus( Trade::STATUS_FAILED, $quoteResult['message'] );
+        $this->onTradeCompleted( $trade );
+        return false;
+      }
+
+      // Step 4: Update trade with quote information
+      $trade->updateQuote( $quoteResult['quote_id'], $quoteResult['quote_rate'] );
+      $trade->updateStatus( Trade::STATUS_QUOTED, 'Quote created successfully' );
+
+      // Step 5: Execute the trade (simulate API call)
+      $executionResult = $this->executeTrade( $trade, $client );
+      if ( ! $executionResult['success'] ) {
+        $trade->updateStatus( Trade::STATUS_FAILED, $executionResult['message'] );
+        $this->onTradeCompleted( $trade );
+        return false;
+      }
+
+      // Step 6: Update trade with execution information
+      $trade->updateExecution( $executionResult['bank_trxn_id'], $executionResult['deal_ref'] );
+      $trade->updateStatus( Trade::STATUS_SUCCESS, 'Trade executed successfully' );
+
+      // Step 7: Notify batch of trade completion
+      $this->onTradeCompleted( $trade );
+
+      return true;
+    }
+    catch ( Exception $e )
+    {
+      $trade->updateStatus( Trade::STATUS_FAILED, 'Exception: ' . $e->getMessage() );
+      $this->onTradeCompleted( $trade );
+      return false;
+    } // try-catch
+
+  } // executeTradeInBatch
+
+
+  /**
+   * Create quote for a trade (simulated).
+   *
+   * @param Trade $trade
+   * @param array $client
+   * @return array
+   */
+  private function createQuoteForTrade( Trade $trade, array $client ): array
+  {
+    // Simulate API call to create quote
+    // In a real implementation, this would call the Capitec CreateQuote API
+    
+    $amountZar = $trade->getAttribute( 'amount_zar' );
+    
+    // Simulate some validation
+    if ( $amountZar <= 0 ) {
+      return [ 'success' => false, 'message' => 'Invalid amount' ];
+    }
+
+    if ( empty( $client['zar_account'] ) ) {
+      return [ 'success' => false, 'message' => 'Client has no ZAR account' ];
+    }
+
+    // Simulate quote creation
+    $quoteId = 'quote_' . time() . '_' . $trade->getAttribute( 'id' );
+    $quoteRate = 18.50 + ( rand( -50, 50 ) / 1000 ); // Simulate rate variation
+
+    return [
+      'success' => true,
+      'quote_id' => $quoteId,
+      'quote_rate' => $quoteRate,
+      'message' => 'Quote created successfully'
+    ];
+  } // createQuoteForTrade
+
+
+  /**
+   * Execute a trade (simulated).
+   *
+   * @param Trade $trade
+   * @param array $client
+   * @return array
+   */
+  private function executeTrade( Trade $trade, array $client ): array
+  {
+    // Simulate API call to execute trade
+    // In a real implementation, this would call the Capitec BookQuotedDeal API
+    
+    $quoteId = $trade->getAttribute( 'quote_id' );
+    $quoteRate = $trade->getAttribute( 'quote_rate' );
+    
+    if ( empty( $quoteId ) || empty( $quoteRate ) ) {
+      return [ 'success' => false, 'message' => 'Missing quote information' ];
+    }
+
+    // Simulate trade execution with 90% success rate
+    if ( rand( 1, 100 ) <= 90 ) {
+      $bankTrxnId = 'trxn_' . time() . '_' . $trade->getAttribute( 'id' );
+      $dealRef = 'deal_' . time() . '_' . $trade->getAttribute( 'id' );
+
+      return [
+        'success' => true,
+        'bank_trxn_id' => $bankTrxnId,
+        'deal_ref' => $dealRef,
+        'message' => 'Trade executed successfully'
+      ];
+    } else {
+      return [ 'success' => false, 'message' => 'Trade execution failed (simulated)' ];
+    }
+  } // executeTrade
+
+
+  /**
+   * Handle trade completion callback.
+   *
+   * @param Trade $trade
+   */
+  private function onTradeCompleted( Trade $trade ): void
+  {
+    $batchId = $trade->getAttribute( 'batch_id' );
+    if ( $batchId ) {
+      // Update batch progress
+      $this->updateBatchProgress( $batchId );
+    }
+  } // onTradeCompleted
+
+
+  /**
+   * Get pending trades that need processing.
+   *
+   * @return array
+   */
+  public function getPendingTrades(): array
+  {
+    return $this->tradeModel->getPendingTrades();
+  } // getPendingTrades
+
+
+  /**
+   * Process all pending trades in batches.
+   *
+   * @param int $batchSize
+   * @return int Number of trades processed
+   */
+  public function processPendingTrades( int $batchSize = 10 ): int
+  {
+    $pendingTrades = $this->getPendingTrades();
+    $processedCount = 0;
+
+    foreach ( $pendingTrades as $trade ) {
+      if ( $processedCount >= $batchSize ) {
+        break;
+      }
+
+      if ( $this->executeTradeInBatch( $trade ) ) {
+        $processedCount++;
+      }
+    }
+
+    return $processedCount;
+  } // processPendingTrades
+
+
+  /**
+   * Get detailed error information for a batch.
+   *
+   * @param int $batchId
+   * @return array|null
+   */
+  public function getBatchErrors( int $batchId )
+  {
+    $batch = $this->batchModel->find( $batchId );
+    if ( ! $batch ) {
+      return null;
+    }
+
+    // Get failed trades
+    $failedTrades = $this->tradeModel->findAll( 
+      [ 'batch_id' => $batchId, 'status' => Trade::STATUS_FAILED ], 
+      'created_at ASC' 
+    );
+
+    // Group errors by type
+    $errorSummary = [];
+    foreach ( $failedTrades as $trade ) {
+      $errorMessage = $trade->getAttribute( 'status_message' ) ?? 'Unknown Error';
+      if ( ! isset( $errorSummary[$errorMessage] ) ) {
+        $errorSummary[$errorMessage] = [
+          'count' => 0,
+          'trades' => []
+        ];
+      }
+      $errorSummary[$errorMessage]['count']++;
+      $errorSummary[$errorMessage]['trades'][] = $trade->getSummary();
+    }
+
+    return [
+      'batch' => $batch->getSummary(),
+      'failed_trades' => array_map( function( $trade ) {
+        return $trade->getSummary();
+      }, $failedTrades ),
+      'error_summary' => $errorSummary,
+      'total_failed' => count( $failedTrades )
+    ];
+  } // getBatchErrors
 
 } // BatchService

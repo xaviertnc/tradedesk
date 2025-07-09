@@ -338,6 +338,108 @@
       </div>
     </div>
 
+    <!-- Batch Detail Modal -->
+    <div id="batch-detail-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden">
+      <div class="relative top-10 mx-auto p-5 border w-full max-w-6xl shadow-lg rounded-md bg-white">
+        <div class="flex justify-between items-center pb-3 border-b">
+          <h3 class="text-lg leading-6 font-medium text-gray-900">Batch Details</h3>
+          <button id="close-batch-modal-btn" class="text-gray-400 hover:text-gray-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
+        </div>
+        
+        <!-- Batch Summary Section -->
+        <div class="mt-4 mb-6">
+          <div id="batch-summary-loader" class="flex justify-center items-center h-16">
+            <div class="loader"></div>
+          </div>
+          <div id="batch-summary-content" class="hidden">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+              <div class="bg-gray-50 p-4 rounded-lg">
+                <div class="text-sm font-medium text-gray-500">Batch ID</div>
+                <div id="batch-uid" class="text-lg font-mono text-gray-900"></div>
+              </div>
+              <div class="bg-gray-50 p-4 rounded-lg">
+                <div class="text-sm font-medium text-gray-500">Status</div>
+                <div id="batch-status" class="text-lg font-semibold"></div>
+              </div>
+              <div class="bg-gray-50 p-4 rounded-lg">
+                <div class="text-sm font-medium text-gray-500">Total Trades</div>
+                <div id="batch-total-trades" class="text-lg font-semibold text-gray-900"></div>
+              </div>
+              <div class="bg-gray-50 p-4 rounded-lg">
+                <div class="text-sm font-medium text-gray-500">Created</div>
+                <div id="batch-created" class="text-lg text-gray-900"></div>
+              </div>
+            </div>
+            
+            <!-- Progress Bar -->
+            <div class="mb-4">
+              <div class="flex justify-between items-center mb-2">
+                <span class="text-sm font-medium text-gray-700">Progress</span>
+                <span id="batch-progress-text" class="text-sm text-gray-500">0%</span>
+              </div>
+              <div class="w-full bg-gray-200 rounded-full h-3">
+                <div id="batch-progress-bar" class="bg-blue-600 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
+              </div>
+            </div>
+
+            <!-- Statistics -->
+            <div class="grid grid-cols-3 gap-4 mb-6">
+              <div class="text-center">
+                <div id="batch-success-count" class="text-2xl font-bold text-green-600">0</div>
+                <div class="text-sm text-gray-500">Successful</div>
+              </div>
+              <div class="text-center">
+                <div id="batch-failed-count" class="text-2xl font-bold text-red-600">0</div>
+                <div class="text-sm text-gray-500">Failed</div>
+              </div>
+              <div class="text-center">
+                <div id="batch-pending-count" class="text-2xl font-bold text-yellow-600">0</div>
+                <div class="text-sm text-gray-500">Pending</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Trades Table -->
+        <div class="mt-6">
+          <h4 class="text-md font-semibold text-gray-900 mb-3">Trades</h4>
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CIF</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount (ZAR)</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quote Rate</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transaction ID</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Message</th>
+                </tr>
+              </thead>
+              <tbody id="batch-trades-list" class="bg-white divide-y divide-gray-200">
+                <!-- Populated by JavaScript -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Modal Actions -->
+        <div class="mt-6 flex justify-end space-x-3">
+          <button id="view-batch-errors-btn" class="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700">
+            View Errors
+          </button>
+          <button id="refresh-batch-details-btn" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700">
+            Refresh
+          </button>
+          <button id="close-batch-modal-btn-2" class="px-4 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-400">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+
     <script src="js/app.js"></script>
   </body>
 </html>

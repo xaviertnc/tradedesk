@@ -35,11 +35,11 @@
   - [x] **2.1.3** Add batch status validation and transitions (basic implementation)
   - [x] **2.1.4** Create batch completion detection logic
 
-- [ ] **2.2** Implement async batch processing
-  - [ ] **2.2.1** Create `runBatchAsync()` method for background processing
-  - [ ] **2.2.2** Implement trade execution within batch context
-  - [ ] **2.2.3** Add progress tracking for individual trades
-  - [ ] **2.2.4** Handle trade completion callbacks
+- [x] **2.2** Implement async batch processing
+  - [x] **2.2.1** Create `runBatchAsync()` method for background processing
+  - [x] **2.2.2** Implement trade execution within batch context
+  - [x] **2.2.3** Add progress tracking for individual trades
+  - [x] **2.2.4** Handle trade completion callbacks
 
 - [ ] **2.3** Add batch state management
   - [ ] **2.3.1** Implement `updateBatchStatus()` method
@@ -66,14 +66,15 @@
 
 - [x] **3.2** Create batch management endpoints
   - [x] **3.2.1** `POST /api/batches` - Start new batch (`stage_batch` action)
-  - [x] **3.2.2** `PUT /api/batches/{id}/cancel` - Cancel running batch (`cancel_batch` action)
-  - [x] **3.2.3** `DELETE /api/batches/{id}` - Delete completed batch (`delete_batch` action)
-  - [x] **3.2.4** `GET /api/batches/{id}/trades` - Get trades in batch (included in `get_batch`)
+  - [x] **3.2.2** `POST /api/batches/{id}/start` - Start batch processing (`start_batch` action)
+  - [x] **3.2.3** `PUT /api/batches/{id}/cancel` - Cancel running batch (`cancel_batch` action)
+  - [x] **3.2.4** `DELETE /api/batches/{id}` - Delete completed batch (`delete_batch` action)
+  - [x] **3.2.5** `GET /api/batches/{id}/trades` - Get trades in batch (included in `get_batch`)
 
-- [ ] **3.3** Add batch progress tracking
+- [x] **3.3** Add batch progress tracking
   - [x] **3.3.1** `GET /api/batches/{id}/progress` - Get real-time progress
   - [x] **3.3.2** `GET /api/batches/{id}/results` - Get batch results summary
-  - [ ] **3.3.3** `GET /api/batches/{id}/errors` - Get batch error details
+  - [x] **3.3.3** `GET /api/batches/{id}/errors` - Get batch error details
 
 - [ ] **3.4** Implement batch search and filtering
   - [x] **3.4.1** Add date range filtering (basic implementation)
@@ -98,11 +99,11 @@
   - [x] **4.2.3** Implement batch detail modal/popup (basic alert popup)
   - [x] **4.2.4** Add batch result summary display (basic implementation)
 
-- [ ] **4.3** Create batch detail components
-  - [ ] **4.3.1** Design batch detail page layout
-  - [ ] **4.3.2** Add trade list within batch context
-  - [ ] **4.3.3** Create trade status indicators
-  - [ ] **4.3.4** Add trade result/error display
+- [x] **4.3** Create batch detail components
+  - [x] **4.3.1** Design batch detail page layout
+  - [x] **4.3.2** Add trade list within batch context
+  - [x] **4.3.3** Create trade status indicators
+  - [x] **4.3.4** Add trade result/error display
 
 - [ ] **4.4** Implement real-time updates
   - [ ] **4.4.1** Add WebSocket connection for live updates

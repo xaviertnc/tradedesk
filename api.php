@@ -162,6 +162,8 @@ try {
     case 'get_batch': handleGetBatch( $db ); break;
     case 'get_batch_progress': handleGetBatchProgress( $db ); break;
     case 'get_batch_results': handleGetBatchResults( $db ); break;
+    case 'get_batch_errors': handleGetBatchErrors( $db ); break;
+    case 'start_batch': handleStartBatch( $db ); break;
     case 'upload_batch_csv': handleUploadBatchCsv( $db ); break;
     case 'cancel_batch': handleCancelBatch( $db ); break;
     case 'delete_batch': handleDeleteBatch( $db ); break;
@@ -669,6 +671,62 @@ function handleGetBatchResults( $db ) {
   } catch ( Exception $e ) {
     http_response_code( 500 );
     echo json_encode( [ 'success' => false, 'message' => 'Failed to get batch results: ' . $e->getMessage() ] );
+  }
+}
+
+
+function handleGetBatchErrors( $db ) {
+  $batchId = $_GET['id'] ?? null;
+  if ( !$batchId ) {
+    http_response_code( 400 );
+    echo json_encode( [ 'success' => false, 'message' => 'Batch ID is required.' ] );
+    return;
+  }
+
+  try {
+    require_once __DIR__ . '/BatchService.php';
+    $batchService = new BatchService( $db );
+    $errors = $batchService->getBatchErrors( (int)$batchId );
+
+    if ( $errors ) {
+      echo json_encode( [ 'success' => true, 'data' => $errors ] );
+    } else {
+      http_response_code( 404 );
+      echo json_encode( [ 'success' => false, 'message' => 'Batch not found.' ] );
+    }
+  } catch ( Exception $e ) {
+    http_response_code( 500 );
+    echo json_encode( [ 'success' => false, 'message' => 'Failed to get batch errors: ' . $e->getMessage() ] );
+  }
+}
+
+
+function handleStartBatch( $db ) {
+  $batchId = $_POST['batch_id'] ?? null;
+  if ( !$batchId ) {
+    http_response_code( 400 );
+    echo json_encode( [ 'success' => false, 'message' => 'Batch ID is required.' ] );
+    return;
+  }
+
+  try {
+    require_once __DIR__ . '/BatchService.php';
+    $batchService = new BatchService( $db );
+    $success = $batchService->runBatchAsync( (int)$batchId );
+    
+    if ( $success ) {
+      echo json_encode( [ 
+        'success' => true, 
+        'message' => 'Batch processing started successfully.',
+        'batch_id' => $batchId
+      ] );
+    } else {
+      http_response_code( 400 );
+      echo json_encode( [ 'success' => false, 'message' => 'Failed to start batch processing.' ] );
+    }
+  } catch ( Exception $e ) {
+    http_response_code( 500 );
+    echo json_encode( [ 'success' => false, 'message' => 'Error starting batch: ' . $e->getMessage() ] );
   }
 }
 
