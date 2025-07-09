@@ -222,27 +222,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const noMigrationsMsg = document.getElementById('no-migrations-message');
         
         select.innerHTML = '';
-  
-        if ( migrations.available && migrations.available.length > 0 ) {
-          migrations.available.forEach(m => {
-            const option = document.createElement('option');
-            option.value = m;
-            option.textContent = m;
-            select.appendChild(option);
-          });
-          select.classList.remove('hidden');
-          button.classList.remove('hidden');
-          button.disabled = false;
-          noMigrationsMsg.classList.add('hidden');
-        } else {
-          select.classList.add('hidden');
-          button.classList.add('hidden');
-          button.disabled = true;
-          noMigrationsMsg.classList.remove('hidden');
-        }
+        console.log('[MIGRATION] Available migrations:', migrations.available);
+
+        // Store for later use in schema logic
+        window._latestMigrations = migrations;
       } catch ( error ) {
         console.error('Error loading migrations:', error);
         showToast('Could not load migrations list.', true);
+        return;
       }
   
       // Verify schema integrity
@@ -252,30 +239,62 @@ document.addEventListener('DOMContentLoaded', () => {
         const errorMsgDiv = document.getElementById('schema-error-message');
         const errorList = document.getElementById('schema-error-list');
         const noMigrationsMsg = document.getElementById('no-migrations-message');
-        const migrationControls = document.querySelector('#migration-select, #run-migration-btn');
-  
-        if ( result.success && !result.is_valid ) {
-          errorList.innerHTML = ''; // Clear previous errors
-          if ( result.errors.missing_tables.length > 0 ) {
+        const select = document.getElementById('migration-select');
+        const button = document.getElementById('run-migration-btn');
+        const migrations = window._latestMigrations || { available: [] };
+
+        console.log('[SCHEMA] verify_schema result:', result);
+        console.log('[UI] Current migration select hidden:', select.classList.contains('hidden'));
+
+        if ( result.success && result.is_valid ) {
+          // Schema is valid
+          console.log('[UI] Schema is valid. Hiding warning and migration controls.');
+          errorMsgDiv.classList.add('hidden');
+          select.classList.add('hidden');
+          button.classList.add('hidden');
+          button.disabled = true;
+          noMigrationsMsg.classList.remove('hidden');
+          // Remove any repair hint
+          const existingHint = document.querySelector('.text-orange-700.bg-orange-50');
+          if ( existingHint ) existingHint.remove();
+        } else {
+          // Schema is invalid
+          console.log('[UI] Schema is INVALID. Showing warning.');
+          errorList.innerHTML = '';
+          if ( result.errors && result.errors.missing_tables && result.errors.missing_tables.length > 0 ) {
             const li = document.createElement('li');
             li.textContent = `Missing tables: ${result.errors.missing_tables.join(', ')}`;
             errorList.appendChild(li);
           }
-          Object.keys(result.errors.missing_columns).forEach(table => {
-            const li = document.createElement('li');
-            li.textContent = `Table '${table}' is missing columns: ${result.errors.missing_columns[table].join(', ')}`;
-            errorList.appendChild(li);
-          });
+          if ( result.errors && result.errors.missing_columns ) {
+            Object.keys(result.errors.missing_columns).forEach(table => {
+              const li = document.createElement('li');
+              li.textContent = `Table '${table}' is missing columns: ${result.errors.missing_columns[table].join(', ')}`;
+              errorList.appendChild(li);
+            });
+          }
           errorMsgDiv.classList.remove('hidden');
-          
-          // Hide the "up to date" message when schema is invalid
-          noMigrationsMsg.classList.add('hidden');
-          
-          // Show repair hint when no pending migrations but schema is invalid
-          if ( !document.getElementById('migration-select').classList.contains('hidden') ) {
-            // There are pending migrations, so keep controls visible
+          // Show migration controls only if there are available migrations
+          if ( migrations.available && migrations.available.length > 0 ) {
+            console.log('[UI] Pending migrations found. Showing migration controls.');
+            select.innerHTML = '';
+            migrations.available.forEach(m => {
+              const option = document.createElement('option');
+              option.value = m;
+              option.textContent = m;
+              select.appendChild(option);
+            });
+            select.classList.remove('hidden');
+            button.classList.remove('hidden');
+            button.disabled = false;
+            noMigrationsMsg.classList.add('hidden');
           } else {
-            // No pending migrations but schema is invalid - show repair hint
+            console.log('[UI] No pending migrations. Hiding migration controls and showing repair hint.');
+            select.classList.add('hidden');
+            button.classList.add('hidden');
+            button.disabled = true;
+            noMigrationsMsg.classList.add('hidden');
+            // Show repair hint if needed...
             const repairHint = document.createElement('div');
             repairHint.className = 'text-sm text-orange-700 bg-orange-50 p-3 rounded-lg mt-4';
             repairHint.innerHTML = `
@@ -283,29 +302,10 @@ document.addEventListener('DOMContentLoaded', () => {
               Your database schema is inconsistent. Consider deleting the <code>tradedesk.db</code> file 
               to let the application recreate it with the correct schema.
             `;
-            
             // Remove any existing repair hint
             const existingHint = document.querySelector('.text-orange-700.bg-orange-50');
-            if ( existingHint ) {
-              existingHint.remove();
-            }
-            
+            if ( existingHint ) existingHint.remove();
             document.getElementById('migration-section').appendChild(repairHint);
-          }
-        } else {
-          errorMsgDiv.classList.add('hidden');
-          
-          // Remove any repair hint when schema is valid
-          const existingHint = document.querySelector('.text-orange-700.bg-orange-50');
-          if ( existingHint ) {
-            existingHint.remove();
-          }
-          
-          // Only show "up to date" message when schema is valid AND no pending migrations
-          if ( !document.getElementById('migration-select').classList.contains('hidden') ) {
-            noMigrationsMsg.classList.add('hidden');
-          } else {
-            noMigrationsMsg.classList.remove('hidden');
           }
         }
       } catch ( error ) {
