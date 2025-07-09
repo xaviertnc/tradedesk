@@ -256,6 +256,14 @@
                 <button id="refresh-batches-btn" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">Refresh</button>
               </div>
             </div>
+            
+            <!-- Auto-refresh indicator -->
+            <div id="auto-refresh-indicator" class="hidden mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+              <div class="flex items-center">
+                <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                <span class="text-sm text-blue-700 font-medium"></span>
+              </div>
+            </div>
             <div class="overflow-x-auto">
               <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">

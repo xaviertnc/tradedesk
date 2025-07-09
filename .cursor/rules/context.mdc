@@ -8,5 +8,7 @@ alwaysApply: true
 3. Put/Find all test related files in the `tests` folder.
 4. Put/Find all chat summaries in the `chat` folder.  `chat_<summary_title>_<datetime>.md`
 5. To run PHP, use the full path: `C:\laragon\bin\php\php-8.1.10-Win32-vs16-x64\php.exe`
-6. This project root is: `C:\laragon\www\projects\currencyhub\tradedesk\v8` use this path to reference files. Don't `cd` to this path, just to use relative paths.
+6. Always use absolute paths to refer to files in tool calls!
+Use: `C:\laragon\www\projects\currencyhub\tradedesk\v8` as base for files in the project. Don't `cd` to the current directory in the terminal! Avoid: `"C:\laragon\www\projects\currencyhub\tradedesk\v8" && C:\laragon\bin\php\php-8.1.10-Win32-vs16-x64\php.exe -l js/app.js` - It always throws: "The token '&&' is not a valid statement separator"!
+Instead use: `C:\laragon\bin\php\php-8.1.10-Win32-vs16-x64\php.exe -l "C:\laragon\www\projects\currencyhub\tradedesk\v8\js\app.js"`
 7. Migrations files must return a callable function!

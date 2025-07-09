@@ -19,7 +19,7 @@
 
 2. **Trade-to-Batch Linking**
 
-   * Individual trades aren’t linked to their batch after execution, so you can't retrieve batch composition or results.
+   * Individual trades aren't linked to their batch after execution, so you can't retrieve batch composition or results.
 
 3. **Concurrent Batch Management**
 
@@ -174,12 +174,17 @@ def get_batch_details(batch_id):
   * ✅ Core API endpoints (get_batches, get_batch, stage_batch)
   * ✅ Basic frontend UI for batch management
   * ✅ Migration scripts with rollback functionality
+  * ✅ **Create proper Batch and Trade model classes** (Milestone 1.2-1.3) - COMPLETED
+  * ✅ **Implement async batch processing** (Milestone 2.2) - COMPLETED
+  * ✅ **Add batch state management and completion detection** (Milestone 2.3) - COMPLETED
+  * ✅ **Implement batch progress tracking** (Milestone 3.3) - COMPLETED
+  * ✅ **Add batch cancellation and deletion endpoints** (Milestone 3.2.2-3.2.3) - COMPLETED
+  * ✅ **Create proper batch detail components** (Milestone 4.3) - COMPLETED
+  * ✅ **Add auto-refresh functionality** (Milestone 4.4.4) - COMPLETED
 
 * **🔄 NEXT PRIORITIES:**
-  * ✅ **Create proper Batch and Trade model classes** (Milestone 1.2-1.3) - COMPLETED
-  * 🔄 **Implement async batch processing** (Milestone 2.2)
-  * 🔄 **Add batch state management and completion detection** (Milestone 2.3)
-  * 🔄 **Implement batch progress tracking** (Milestone 3.3)
-  * ✅ **Add batch cancellation and deletion endpoints** (Milestone 3.2.2-3.2.3) - COMPLETED
-  * 🔄 **Create proper batch detail components** (Milestone 4.3)
+  * 🔄 **Implement concurrent batch handling** (Milestone 2.4)
+  * 🔄 **Add WebSocket connection for live updates** (Milestone 4.4.1)
+  * 🔄 **Add batch completion notifications** (Milestone 4.4.3)
   * 🔄 **Integrate with existing trade execution** (Milestone 5.1)
+  * 🔄 **Implement batch decision workflow** (Milestone 5.3)

@@ -10,12 +10,14 @@
  * @author Your Name <email@domain.com>
  *
  * Last 3 version commits:
+ * @version 1.2 - FEAT - 10 Jul 2025 - Add auto-refresh functionality for batch monitoring
  * @version 1.1 - FEAT - 10 Jul 2025 - Add batch progress bars and enhanced status display
  * @version 1.0 - INIT - 28 Jun 2025 - Initial commit
  * @version x.x - FT|UPD - 29 Jun 2025 - Migrate spread to integer bips
  */
 document.addEventListener('DOMContentLoaded', () => {
     const API_URL = './api.php';
+    let batchRefreshInterval = null; // Auto-refresh interval for active batches
   
     // --- Toast Notification Handler ---
     function showToast(message, isError = false) {
@@ -42,6 +44,17 @@ document.addEventListener('DOMContentLoaded', () => {
           button.classList.add('tab-active');
         }
       });
+      
+      // Clean up auto-refresh when leaving batches tab
+      if (tabName !== 'batches' && batchRefreshInterval) {
+        clearInterval(batchRefreshInterval);
+        batchRefreshInterval = null;
+        const refreshIndicator = document.getElementById('auto-refresh-indicator');
+        if (refreshIndicator) {
+          refreshIndicator.classList.add('hidden');
+        }
+      }
+      
       if ( tabName === 'clients' ) loadClients();
       if ( tabName === 'accounts' ) loadBankAccounts();
       if ( tabName === 'settings' ) loadMigrationsAndVerifySchema();
@@ -417,9 +430,50 @@ document.addEventListener('DOMContentLoaded', () => {
             batchList.insertAdjacentHTML('beforeend', row);
           });
         }
+
+        // Setup auto-refresh for active batches
+        setupBatchAutoRefresh(result.batches);
       } catch ( error ) {
         console.error('Error loading batches:', error);
         showToast('Could not load batches.', true);
+      }
+    }
+
+
+    /**
+     * Setup auto-refresh for active batches
+     * @param {Array} batches - Array of batch objects
+     */
+    function setupBatchAutoRefresh(batches) {
+      // Clear existing interval
+      if (batchRefreshInterval) {
+        clearInterval(batchRefreshInterval);
+        batchRefreshInterval = null;
+      }
+
+      // Check if there are any active batches (PENDING or RUNNING)
+      const activeBatches = batches.filter(batch => 
+        ['PENDING', 'RUNNING'].includes(batch.status)
+      );
+
+      if (activeBatches.length > 0) {
+        // Start auto-refresh every 3 seconds for active batches
+        batchRefreshInterval = setInterval(() => {
+          loadBatches();
+        }, 3000);
+        
+        // Show auto-refresh indicator
+        const refreshIndicator = document.getElementById('auto-refresh-indicator');
+        if (refreshIndicator) {
+          refreshIndicator.classList.remove('hidden');
+          refreshIndicator.textContent = `Auto-refreshing every 3s (${activeBatches.length} active batch${activeBatches.length > 1 ? 'es' : ''})`;
+        }
+      } else {
+        // Hide auto-refresh indicator when no active batches
+        const refreshIndicator = document.getElementById('auto-refresh-indicator');
+        if (refreshIndicator) {
+          refreshIndicator.classList.add('hidden');
+        }
       }
     }
 

@@ -41,11 +41,11 @@
   - [x] **2.2.3** Add progress tracking for individual trades
   - [x] **2.2.4** Handle trade completion callbacks
 
-- [ ] **2.3** Add batch state management
-  - [ ] **2.3.1** Implement `updateBatchStatus()` method
-  - [ ] **2.3.2** Add batch completion detection (all trades finished)
-  - [ ] **2.3.3** Create batch result aggregation logic
-  - [ ] **2.3.4** Add error handling and partial success detection
+- [x] **2.3** Add batch state management
+  - [x] **2.3.1** Implement `updateBatchStatus()` method
+  - [x] **2.3.2** Add batch completion detection (all trades finished)
+  - [x] **2.3.3** Create batch result aggregation logic
+  - [x] **2.3.4** Add error handling and partial success detection
 
 - [ ] **2.4** Implement concurrent batch handling
   - [ ] **2.4.1** Add batch locking mechanisms
@@ -105,11 +105,11 @@
   - [x] **4.3.3** Create trade status indicators
   - [x] **4.3.4** Add trade result/error display
 
-- [ ] **4.4** Implement real-time updates
+- [x] **4.4** Implement real-time updates
   - [ ] **4.4.1** Add WebSocket connection for live updates
-  - [ ] **4.4.2** Implement progress bar animations
+  - [x] **4.4.2** Implement progress bar animations
   - [ ] **4.4.3** Add batch completion notifications
-  - [ ] **4.4.4** Create auto-refresh functionality
+  - [x] **4.4.4** Create auto-refresh functionality
 
 ---
 
