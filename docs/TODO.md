@@ -33,7 +33,7 @@
   - [x] **2.1.1** Implement `startBatch()` method to create new batch (via `createBatchFromCsv()`)
   - [x] **2.1.2** Implement `assignTradesToBatch()` method (via `createBatchFromCsv()`)
   - [x] **2.1.3** Add batch status validation and transitions (basic implementation)
-  - [ ] **2.1.4** Create batch completion detection logic
+  - [x] **2.1.4** Create batch completion detection logic
 
 - [ ] **2.2** Implement async batch processing
   - [ ] **2.2.1** Create `runBatchAsync()` method for background processing
@@ -71,8 +71,8 @@
   - [x] **3.2.4** `GET /api/batches/{id}/trades` - Get trades in batch (included in `get_batch`)
 
 - [ ] **3.3** Add batch progress tracking
-  - [ ] **3.3.1** `GET /api/batches/{id}/progress` - Get real-time progress
-  - [ ] **3.3.2** `GET /api/batches/{id}/results` - Get batch results summary
+  - [x] **3.3.1** `GET /api/batches/{id}/progress` - Get real-time progress
+  - [x] **3.3.2** `GET /api/batches/{id}/results` - Get batch results summary
   - [ ] **3.3.3** `GET /api/batches/{id}/errors` - Get batch error details
 
 - [ ] **3.4** Implement batch search and filtering
@@ -89,7 +89,7 @@
 - [x] **4.1** Create batch dashboard component
   - [x] **4.1.1** Design batch overview layout
   - [x] **4.1.2** Add active batches display with progress bars (basic implementation)
-  - [ ] **4.1.3** Create batch status indicators
+  - [x] **4.1.3** Create batch status indicators
   - [x] **4.1.4** Add batch action buttons (cancel, view details)
 
 - [x] **4.2** Implement batch history view

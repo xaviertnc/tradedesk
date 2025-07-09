@@ -10,6 +10,7 @@
  * @author Your Name <email@domain.com>
  *
  * Last 3 version commits:
+ * @version 1.1 - FEAT - 10 Jul 2025 - Add batch progress bars and enhanced status display
  * @version 1.0 - INIT - 28 Jun 2025 - Initial commit
  * @version x.x - FT|UPD - 29 Jun 2025 - Migrate spread to integer bips
  */
@@ -381,11 +382,13 @@ document.addEventListener('DOMContentLoaded', () => {
         batchList.innerHTML = '';
         
         if ( result.batches.length === 0 ) {
-          batchList.innerHTML = `<tr><td colspan="7" class="text-center py-4">No batches found. Create a new batch or upload a CSV file.</td></tr>`;
+          batchList.innerHTML = `<tr><td colspan="8" class="text-center py-4">No batches found. Create a new batch or upload a CSV file.</td></tr>`;
         } else {
           result.batches.forEach(batch => {
             const statusClass = getStatusClass(batch.status);
             const createdDate = new Date(batch.created_at).toLocaleString();
+            const progressPercentage = batch.total_trades > 0 ? 
+              Math.round(((batch.processed_trades + batch.failed_trades) / batch.total_trades) * 100) : 0;
             
             const row = `
               <tr class="batch-row" data-batch-id="${batch.id}">
@@ -398,6 +401,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td class="px-6 py-4 whitespace-nowrap text-sm">${batch.total_trades}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm">${batch.processed_trades}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm">${batch.failed_trades}</td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: ${progressPercentage}%"></div>
+                  </div>
+                  <div class="text-xs text-gray-500 mt-1">${progressPercentage}%</div>
+                </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm">${createdDate}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <button class="btn-view-batch text-indigo-600 hover:text-indigo-900">View</button>
@@ -418,14 +427,16 @@ document.addEventListener('DOMContentLoaded', () => {
       switch ( status.toUpperCase() ) {
         case 'PENDING':
           return 'bg-yellow-100 text-yellow-800';
-        case 'PROCESSING':
+        case 'RUNNING':
           return 'bg-blue-100 text-blue-800';
-        case 'COMPLETED':
+        case 'SUCCESS':
           return 'bg-green-100 text-green-800';
+        case 'PARTIAL_SUCCESS':
+          return 'bg-orange-100 text-orange-800';
         case 'FAILED':
           return 'bg-red-100 text-red-800';
-        case 'STAGED':
-          return 'bg-purple-100 text-purple-800';
+        case 'CANCELLED':
+          return 'bg-gray-100 text-gray-800';
         default:
           return 'bg-gray-100 text-gray-800';
       }

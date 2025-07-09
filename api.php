@@ -12,6 +12,7 @@
  * @author Gemini <gemini@google.com>
  *
  * Last 3 version commits:
+ * @version 1.2 - FEAT - 10 Jul 2025 - Add batch progress and results endpoints
  * @version 1.1 - FEAT - 09 Jul 2025 - Add CSV batch import and enhance batches table.
  * @version 1.0 - INIT - 28 Jun 2025 - Initial commit
  */
@@ -159,6 +160,8 @@ try {
     case 'import_trades_batch': handleImportTradesBatch( $db ); break; // New Action
     case 'get_batches': handleGetBatches( $db ); break;
     case 'get_batch': handleGetBatch( $db ); break;
+    case 'get_batch_progress': handleGetBatchProgress( $db ); break;
+    case 'get_batch_results': handleGetBatchResults( $db ); break;
     case 'upload_batch_csv': handleUploadBatchCsv( $db ); break;
     case 'cancel_batch': handleCancelBatch( $db ); break;
     case 'delete_batch': handleDeleteBatch( $db ); break;
@@ -628,6 +631,44 @@ function handleGetBatch( $db ) {
   } catch ( Exception $e ) {
     http_response_code( 500 );
     echo json_encode( [ 'success' => false, 'message' => 'Failed to fetch batch: ' . $e->getMessage() ] );
+  }
+}
+
+
+function handleGetBatchProgress( $db ) {
+  $batchId = $_GET['id'] ?? null;
+  if ( !$batchId ) {
+    http_response_code( 400 );
+    echo json_encode( [ 'success' => false, 'message' => 'Batch ID is required.' ] );
+    return;
+  }
+
+  try {
+    $batchService = new BatchService( $db );
+    $progress = $batchService->getBatchProgress( (int)$batchId );
+    echo json_encode( [ 'success' => true, 'progress' => $progress ] );
+  } catch ( Exception $e ) {
+    http_response_code( 500 );
+    echo json_encode( [ 'success' => false, 'message' => 'Failed to get batch progress: ' . $e->getMessage() ] );
+  }
+}
+
+
+function handleGetBatchResults( $db ) {
+  $batchId = $_GET['id'] ?? null;
+  if ( !$batchId ) {
+    http_response_code( 400 );
+    echo json_encode( [ 'success' => false, 'message' => 'Batch ID is required.' ] );
+    return;
+  }
+
+  try {
+    $batchService = new BatchService( $db );
+    $results = $batchService->getBatchResults( (int)$batchId );
+    echo json_encode( [ 'success' => true, 'results' => $results ] );
+  } catch ( Exception $e ) {
+    http_response_code( 500 );
+    echo json_encode( [ 'success' => false, 'message' => 'Failed to get batch results: ' . $e->getMessage() ] );
   }
 }
 

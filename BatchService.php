@@ -10,6 +10,7 @@
  * @author Gemini <gemini@google.com>
  *
  * Last 3 version commits:
+ * @version 1.2 - FT - 10 Jul 2025 - Auto-detect and set batch final status in updateBatchProgress
  * @version 1.1 - UPD - 09 Jul 2025 - Refactor to use Batch and Trade models
  * @version 1.0 - INIT - 09 Jul 2025 - Initial commit.
  */
@@ -219,7 +220,25 @@ class BatchService
       return false;
     }
 
-    return $batch->updateProgress();
+    $progressUpdated = $batch->updateProgress();
+
+    // Check if all trades are in a final state
+    $trades = $batch->getTrades();
+    $allFinal = true;
+    foreach ( $trades as $trade ) {
+      $status = $trade->getAttribute( 'status' );
+      if ( ! in_array( $status, [ 'SUCCESS', 'FAILED', 'CANCELLED' ] ) ) {
+        $allFinal = false;
+        break;
+      }
+    }
+
+    if ( $allFinal && ! $batch->isCompleted() ) {
+      $finalStatus = $batch->determineFinalStatus();
+      $batch->updateStatus( $finalStatus );
+    }
+
+    return $progressUpdated;
   } // updateBatchProgress
 
 
@@ -335,5 +354,83 @@ class BatchService
     } // try-catch
 
   } // deleteBatch
+
+
+  /**
+   * Get batch progress information.
+   *
+   * @param int $batchId
+   * @return array|null
+   */
+  public function getBatchProgress( int $batchId )
+  {
+    $batch = $this->batchModel->find( $batchId );
+    if ( ! $batch ) {
+      return null;
+    }
+
+    // Update progress first
+    $this->updateBatchProgress( $batchId );
+    
+    // Get fresh batch data
+    $batch = $this->batchModel->find( $batchId );
+    
+    return [
+      'batch_id' => $batchId,
+      'status' => $batch->getAttribute( 'status' ),
+      'total_trades' => $batch->getAttribute( 'total_trades' ),
+      'processed_trades' => $batch->getAttribute( 'processed_trades' ),
+      'failed_trades' => $batch->getAttribute( 'failed_trades' ),
+      'progress_percentage' => $batch->getProgressPercentage(),
+      'is_completed' => $batch->isCompleted(),
+      'is_active' => $batch->isActive(),
+      'updated_at' => $batch->getAttribute( 'updated_at' )
+    ];
+  } // getBatchProgress
+
+
+  /**
+   * Get batch results summary.
+   *
+   * @param int $batchId
+   * @return array|null
+   */
+  public function getBatchResults( int $batchId )
+  {
+    $batch = $this->batchModel->find( $batchId );
+    if ( ! $batch ) {
+      return null;
+    }
+
+    // Update progress first
+    $this->updateBatchProgress( $batchId );
+    
+    // Get fresh batch data
+    $batch = $this->batchModel->find( $batchId );
+    
+    $summary = $batch->getSummary();
+    $trades = $this->getBatchTrades( $batchId );
+    
+    return [
+      'batch_id' => $batchId,
+      'batch_uid' => $batch->getAttribute( 'batch_uid' ),
+      'status' => $batch->getAttribute( 'status' ),
+      'summary' => $summary,
+      'trades' => array_map( function( $trade ) {
+        return [
+          'id' => $trade->getAttribute( 'id' ),
+          'client_id' => $trade->getAttribute( 'client_id' ),
+          'status' => $trade->getAttribute( 'status' ),
+          'status_message' => $trade->getAttribute( 'status_message' ),
+          'amount_zar' => $trade->getAttribute( 'amount_zar' ),
+          'quote_id' => $trade->getAttribute( 'quote_id' ),
+          'quote_rate' => $trade->getAttribute( 'quote_rate' ),
+          'bank_trxn_id' => $trade->getAttribute( 'bank_trxn_id' ),
+          'deal_ref' => $trade->getAttribute( 'deal_ref' ),
+          'created_at' => $trade->getAttribute( 'created_at' )
+        ];
+      }, $trades )
+    ];
+  } // getBatchResults
 
 } // BatchService
