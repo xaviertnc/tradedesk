@@ -6,5 +6,5 @@ alwaysApply: true
 1. When asked to suggest new actions, add new/updated/completed suggestions/TODOs to `docs/PLAN.md`
 2. Put/Find all your "tool scripts" in the `tools` folder.
 3. Put/Find all test related files in the `tests` folder.
-4. Put/Find all chat summaries in the `chat` folder.
+4. Put/Find all chat summaries in the `chat` folder.  `chat_<summary_title>_<datetime>.md`
 5. To run PHP, use the full path: `C:\laragon\bin\php\php-8.1.10-Win32-vs16-x64\php.exe`

@@ -28,6 +28,9 @@ require_once __DIR__ . '/CapitecApiService.php';
 require_once __DIR__ . '/MigrationService.php';
 require_once __DIR__ . '/GeminiApiService.php';
 require_once __DIR__ . '/BatchService.php';
+require_once __DIR__ . '/Model.php';
+require_once __DIR__ . '/Batch.php';
+require_once __DIR__ . '/Trade.php';
 
 // --- Server-Side Logging ---
 function debug_log( $var, $pretext = '', $minDebugLevel = 1, $type = 'DEBUG', $format = 'text' ) {
@@ -157,6 +160,8 @@ try {
     case 'get_batches': handleGetBatches( $db ); break;
     case 'get_batch': handleGetBatch( $db ); break;
     case 'upload_batch_csv': handleUploadBatchCsv( $db ); break;
+    case 'cancel_batch': handleCancelBatch( $db ); break;
+    case 'delete_batch': handleDeleteBatch( $db ); break;
     case 'get_market_analysis': handleGetMarketAnalysis( $db ); break;
     case 'verify_schema': handleVerifySchema( $db ); break;
     default:
@@ -640,3 +645,59 @@ function handleUploadBatchCsv( $db ) {
     echo json_encode( [ 'success' => false, 'message' => 'Failed to create batch: ' . $e->getMessage() ] );
   }
 }
+
+
+function handleCancelBatch( $db ) {
+  $batchId = $_POST['batch_id'] ?? null;
+  if ( !$batchId ) {
+    http_response_code( 400 );
+    echo json_encode( [ 'success' => false, 'message' => 'Batch ID is required.' ] );
+    return;
+  }
+
+  try {
+    $batchService = new BatchService( $db );
+    $success = $batchService->cancelBatch( (int)$batchId );
+    
+    if ( $success ) {
+      echo json_encode( [ 
+        'success' => true, 
+        'message' => 'Batch cancelled successfully.' 
+      ] );
+    } else {
+      http_response_code( 404 );
+      echo json_encode( [ 'success' => false, 'message' => 'Batch not found or could not be cancelled.' ] );
+    }
+  } catch ( Exception $e ) {
+    http_response_code( 500 );
+    echo json_encode( [ 'success' => false, 'message' => 'Failed to cancel batch: ' . $e->getMessage() ] );
+  }
+} // handleCancelBatch
+
+
+function handleDeleteBatch( $db ) {
+  $batchId = $_POST['batch_id'] ?? null;
+  if ( !$batchId ) {
+    http_response_code( 400 );
+    echo json_encode( [ 'success' => false, 'message' => 'Batch ID is required.' ] );
+    return;
+  }
+
+  try {
+    $batchService = new BatchService( $db );
+    $success = $batchService->deleteBatch( (int)$batchId );
+    
+    if ( $success ) {
+      echo json_encode( [ 
+        'success' => true, 
+        'message' => 'Batch deleted successfully.' 
+      ] );
+    } else {
+      http_response_code( 404 );
+      echo json_encode( [ 'success' => false, 'message' => 'Batch not found or could not be deleted.' ] );
+    }
+  } catch ( Exception $e ) {
+    http_response_code( 500 );
+    echo json_encode( [ 'success' => false, 'message' => 'Failed to delete batch: ' . $e->getMessage() ] );
+  }
+} // handleDeleteBatch

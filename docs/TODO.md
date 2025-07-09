@@ -8,16 +8,16 @@
   - [x] **1.1.2** Add `batch_id` foreign key to existing `trades` table
   - [x] **1.1.3** Create indexes for performance on `batch_id` and `status` columns
 
-- [ ] **1.2** Create Batch model class
-  - [ ] **1.2.1** Define Batch entity with all required properties
-  - [ ] **1.2.2** Add status enum constants (pending, running, success, partial_success, failed, cancelled)
-  - [ ] **1.2.3** Implement batch creation and update methods
-  - [ ] **1.2.4** Add relationship methods to get associated trades
+- [x] **1.2** Create Batch model class
+  - [x] **1.2.1** Define Batch entity with all required properties
+  - [x] **1.2.2** Add status enum constants (pending, running, success, partial_success, failed, cancelled)
+  - [x] **1.2.3** Implement batch creation and update methods
+  - [x] **1.2.4** Add relationship methods to get associated trades
 
-- [ ] **1.3** Update Trade model class
-  - [ ] **1.3.1** Add `batch_id` property and relationship to Batch
-  - [ ] **1.3.2** Update trade creation to optionally accept batch_id
-  - [ ] **1.3.3** Add methods to query trades by batch
+- [x] **1.3** Update Trade model class
+  - [x] **1.3.1** Add `batch_id` property and relationship to Batch
+  - [x] **1.3.2** Update trade creation to optionally accept batch_id
+  - [x] **1.3.3** Add methods to query trades by batch
 
 - [x] **1.4** Create database migration script
   - [x] **1.4.1** Write migration to create batches table
@@ -66,8 +66,8 @@
 
 - [x] **3.2** Create batch management endpoints
   - [x] **3.2.1** `POST /api/batches` - Start new batch (`stage_batch` action)
-  - [ ] **3.2.2** `PUT /api/batches/{id}/cancel` - Cancel running batch
-  - [ ] **3.2.3** `DELETE /api/batches/{id}` - Delete completed batch
+  - [x] **3.2.2** `PUT /api/batches/{id}/cancel` - Cancel running batch (`cancel_batch` action)
+  - [x] **3.2.3** `DELETE /api/batches/{id}` - Delete completed batch (`delete_batch` action)
   - [x] **3.2.4** `GET /api/batches/{id}/trades` - Get trades in batch (included in `get_batch`)
 
 - [ ] **3.3** Add batch progress tracking
