@@ -446,15 +446,24 @@ function handleGetMigrations( $db ) {
 
 function handleRunMigration( $db ) {
   $migrationFile = $_POST['migration'] ?? null;
+  header('Content-Type: application/json');
   if ( !$migrationFile ) {
     http_response_code( 400 );
     echo json_encode( [ 'success' => false, 'message' => 'Migration filename not provided.' ] );
     return;
   }
-  
-  $migrationService = new MigrationService( $db );
-  $migrationService->runMigration( $migrationFile );
-  echo json_encode( [ 'success' => true, 'message' => "Migration '{$migrationFile}' ran successfully." ] );
+
+  try {
+    $migrationService = new MigrationService( $db );
+    ob_start(); // Buffer any accidental output
+    $migrationService->runMigration( $migrationFile );
+    $output = ob_get_clean();
+    echo json_encode( [ 'success' => true, 'message' => "Migration '{$migrationFile}' ran successfully.", 'output' => $output ] );
+  } catch ( Exception $e ) {
+    http_response_code( 500 );
+    $output = ob_get_clean();
+    echo json_encode( [ 'success' => false, 'message' => $e->getMessage(), 'output' => $output ] );
+  }
 }
 
 function handleStageBatch( $db ) {

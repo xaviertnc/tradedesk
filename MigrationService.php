@@ -30,7 +30,7 @@ class MigrationService {
 
   public function __construct( PDO $db ) {
     $this->db = $db;
-    $this->migrations_dir = __DIR__ . '/../migrations';
+    $this->migrations_dir = __DIR__ . '/migrations';
     $this->ensureMigrationsTableExists();
   }
 
@@ -69,6 +69,12 @@ class MigrationService {
   public function runMigration( string $filename ): void {
     $filepath = $this->migrations_dir . '/' . $filename;
     
+    // Debug: Log the exact paths being used
+    echo "DEBUG: migrations_dir = '{$this->migrations_dir}'\n";
+    echo "DEBUG: filename = '{$filename}'\n";
+    echo "DEBUG: full filepath = '{$filepath}'\n";
+    echo "DEBUG: file_exists() = " . (file_exists($filepath) ? 'TRUE' : 'FALSE') . "\n";
+    
     if ( !file_exists($filepath) ) {
       throw new Exception("Migration file not found: {$filename}");
     }
@@ -78,7 +84,7 @@ class MigrationService {
       throw new Exception("Migration already ran: {$filename}");
     }
 
-    debug_log("Running migration: {$filename}");
+    echo "Running migration: {$filename}\n";
 
     $migration_function = require $filepath;
 
@@ -95,10 +101,10 @@ class MigrationService {
       $stmt->execute([ $filename, date('Y-m-d H:i:s') ]);
 
       $this->db->commit();
-      debug_log("Successfully ran and recorded migration: {$filename}");
+      echo "Successfully ran and recorded migration: {$filename}\n";
     } catch ( Exception $e ) {
       $this->db->rollBack();
-      debug_log("Failed to run migration '{$filename}': " . $e->getMessage(), 'MIGRATION_ERROR', 1, 'ERROR');
+      echo "Failed to run migration '{$filename}': " . $e->getMessage() . "\n";
       throw $e;
     }
   }
