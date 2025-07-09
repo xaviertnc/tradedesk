@@ -2,17 +2,18 @@
 /**
  * api.php
  *
- * FX Batch Trader API - 28 Jun 2025 ( Start Date )
+ * FX Batch Trader API - 09 Jul 2025
  *
  * Purpose: Main API controller for FX Batch Trader, handling all CRUD and batch trading actions.
  *
  * @package FXBatchTrader
  *
- * @author Your Name <email@domain.com>
+ * @author Xavier TNC <xavier@tnc.com>
+ * @author Gemini <gemini@google.com>
  *
  * Last 3 version commits:
+ * @version 1.1 - FEAT - 09 Jul 2025 - Add CSV batch import and enhance batches table.
  * @version 1.0 - INIT - 28 Jun 2025 - Initial commit
- * @version x.x - FT|UPD - 29 Jun 2025 - Migrate spread to integer bips
  */
 // api.php - Main backend handler
 
@@ -101,10 +102,14 @@ function getDbConnection() {
     UNIQUE(account_no)
   )" );
   
+  // Batches Table - Enhanced for state tracking
   $pdo->exec( "CREATE TABLE IF NOT EXISTS batches (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     batch_uid TEXT NOT NULL UNIQUE,
     status TEXT NOT NULL,
+    total_trades INTEGER NOT NULL DEFAULT 0,
+    processed_trades INTEGER NOT NULL DEFAULT 0,
+    failed_trades INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
   )" );
 
@@ -147,6 +152,7 @@ try {
     case 'get_migrations': handleGetMigrations( $db ); break;
     case 'run_migration': handleRunMigration( $db ); break;
     case 'stage_batch': handleStageBatch( $db ); break;
+    case 'import_trades_batch': handleImportTradesBatch( $db ); break; // New Action
     case 'get_market_analysis': handleGetMarketAnalysis( $db ); break;
     case 'verify_schema': handleVerifySchema( $db ); break;
     default:
@@ -294,12 +300,90 @@ function handleImportClients( $db ) {
       $insertStmt = $db->prepare( $insertSql );
       $updateStmt->execute( [ ':name' => $name, ':spread' => $spread, ':cif' => $cif ] );
       if ( $updateStmt->rowCount() === 0 ) {
-        $insertStmt->execute( [ ':name' => $name, ':cif' => $cif, ':spread' => $spread ] );
+         $insertStmt->execute( [ ':name' => $name, ':cif' => $cif, ':spread' => $spread ] );
       }
       $importedCount++;
     }
     $db->commit();
     echo json_encode( [ 'success' => true, 'imported' => $importedCount ] );
+  } catch ( Exception $e ) {
+    $db->rollBack();
+    throw $e;
+  }
+}
+
+/**
+ * New Handler: Imports a trade batch from a CSV file.
+ */
+function handleImportTradesBatch( $db ) {
+  if ( !isset( $_FILES['csv'] ) || $_FILES['csv']['error'] !== UPLOAD_ERR_OK ) {
+    http_response_code( 400 );
+    echo json_encode( [ 'success' => false, 'message' => 'Trade CSV file upload failed.' ] );
+    return;
+  }
+
+  $csvFile = $_FILES['csv']['tmp_name'];
+  $handle = fopen( $csvFile, 'r' );
+
+  if ( $handle === false ) {
+    throw new Exception( 'Could not open trade CSV file.' );
+  }
+  
+  $header = fgetcsv( $handle );
+  $cifIndex = array_search( 'Client CIF', $header );
+  $amountIndex = array_search( 'Amount ZAR', $header );
+
+  if ( $cifIndex === false || $amountIndex === false ) {
+    http_response_code( 400 );
+    echo json_encode( [ 'success' => false, 'message' => 'CSV must contain "Client CIF" and "Amount ZAR" columns.' ] );
+    return;
+  }
+  
+  // Read all trades into memory to get a total count
+  $tradesToImport = [];
+  while ( ( $row = fgetcsv( $handle ) ) !== false ) {
+      $tradesToImport[] = $row;
+  }
+  fclose($handle);
+
+  if (empty($tradesToImport)) {
+    throw new Exception('No trade data found in CSV file.');
+  }
+
+  $totalTrades = count($tradesToImport);
+  $batch_uid = 'batch_' . time();
+  $now = date( 'Y-m-d H:i:s' );
+
+  $db->beginTransaction();
+  try {
+    // Create batch record
+    $batchStmt = $db->prepare( "INSERT INTO batches (batch_uid, status, total_trades, created_at) VALUES (?, ?, ?, ?)" );
+    $batchStmt->execute( [ $batch_uid, 'Staged', $totalTrades, $now ] );
+    $batch_id = $db->lastInsertId();
+
+    // Prepare statements for finding client and inserting trade
+    $clientStmt = $db->prepare("SELECT id FROM clients WHERE cif_number = ?");
+    $tradeStmt = $db->prepare("INSERT INTO trades (batch_id, client_id, amount_zar, status, created_at) VALUES (?, ?, ?, ?, ?)");
+
+    foreach ( $tradesToImport as $row ) {
+      $cif = $row[$cifIndex] ?? '';
+      $amount = $row[$amountIndex] ?? 0;
+
+      if ( empty( $cif ) || !is_numeric( $amount ) || $amount <= 0 ) continue;
+
+      // Find client_id from CIF
+      $clientStmt->execute([$cif]);
+      $clientId = $clientStmt->fetchColumn();
+
+      if ($clientId) {
+        $tradeStmt->execute( [ $batch_id, $clientId, $amount, 'Pending Validation', $now ] );
+      } else {
+        debug_log("Skipping trade for unknown CIF: {$cif}", 'IMPORT_WARN');
+      }
+    }
+
+    $db->commit();
+    echo json_encode( [ 'success' => true, 'message' => "Batch {$batch_uid} staged successfully with {$totalTrades} trades.", 'batch_uid' => $batch_uid ] );
   } catch ( Exception $e ) {
     $db->rollBack();
     throw $e;
@@ -378,10 +462,11 @@ function handleStageBatch( $db ) {
   try {
     $batch_uid = 'batch_' . time();
     $now = date( 'Y-m-d H:i:s' );
+    $totalTrades = count($data['trades']);
 
     // Create batch record
-    $stmt = $db->prepare( "INSERT INTO batches (batch_uid, status, created_at) VALUES (?, ?, ?)" );
-    $stmt->execute( [ $batch_uid, 'Staged', $now ] );
+    $stmt = $db->prepare( "INSERT INTO batches (batch_uid, status, total_trades, created_at) VALUES (?, ?, ?, ?)" );
+    $stmt->execute( [ $batch_uid, 'Staged', $totalTrades, $now ] );
     $batch_id = $db->lastInsertId();
 
     // Create trade records
