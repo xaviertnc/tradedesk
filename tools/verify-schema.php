@@ -39,7 +39,7 @@ function debug_log( $var, $pretext = '', $minDebugLevel = 1, $type = 'DEBUG', $f
 
 // --- Database Setup ---
 function getDbConnection() {
-  $db_file = 'fx_trader.db';
+  $db_file = 'data' . DIRECTORY_SEPARATOR . 'tradedesk.db';
   
   if ( !file_exists( $db_file ) ) {
     echo "ERROR: Database file '{$db_file}' not found.\n";
@@ -98,7 +98,7 @@ function main() {
     
     echo "💡 Recommended actions:\n";
     echo "  1. Run available migrations: php api.php?action=run_migration\n";
-    echo "  2. If the problem persists, delete fx_trader.db to recreate the database\n";
+    echo "  2. If the problem persists, delete tradedesk.db to recreate the database\n";
     echo "  3. Check migration files for any issues\n";
     
     exit( 1 );

@@ -1,0 +1,8 @@
+[2025-07-09 14:51:02] [DEBUG] : Ensuring all database tables exist...
+[2025-07-09 14:51:02] [DEBUG] : Database schema verified.
+[2025-07-09 14:51:02] [DEBUG] : Processing action: 'get_migrations'
+[2025-07-09 14:51:02] [DEBUG] : Ensuring all database tables exist...
+[2025-07-09 14:51:02] [DEBUG] : Database schema verified.
+[2025-07-09 14:51:02] [DEBUG] : Processing action: 'verify_schema'
+[2025-07-09 14:51:02] [DEBUG] : Database schema verified.
+[2025-07-09 14:51:02] [DEBUG] : Processing action: 'get_config'

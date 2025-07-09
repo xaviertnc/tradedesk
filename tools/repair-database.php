@@ -39,7 +39,7 @@ function debug_log( $var, $pretext = '', $minDebugLevel = 1, $type = 'DEBUG', $f
 
 // --- Database Setup ---
 function getDbConnection() {
-  $db_file = 'fx_trader.db';
+  $db_file = 'data' . DIRECTORY_SEPARATOR . 'tradedesk.db';
   
   if ( !file_exists( $db_file ) ) {
     echo "ERROR: Database file '{$db_file}' not found.\n";
@@ -256,7 +256,7 @@ function main() {
         echo "  Table '{$table}' missing columns: " . implode( ', ', $columns ) . "\n";
       }
     }
-    echo "\n💡 Consider deleting fx_trader.db to recreate the database from scratch.\n";
+    echo "\n💡 Consider deleting tradedesk.db to recreate the database from scratch.\n";
     exit( 1 );
   }
 }

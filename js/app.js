@@ -280,7 +280,7 @@ document.addEventListener('DOMContentLoaded', () => {
             repairHint.className = 'text-sm text-orange-700 bg-orange-50 p-3 rounded-lg mt-4';
             repairHint.innerHTML = `
               <span class="font-medium">⚠️ Schema Repair Required</span><br>
-              Your database schema is inconsistent. Consider deleting the <code>fx_trader.db</code> file 
+              Your database schema is inconsistent. Consider deleting the <code>tradedesk.db</code> file 
               to let the application recreate it with the correct schema.
             `;
             

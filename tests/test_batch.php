@@ -16,7 +16,8 @@ require_once __DIR__ . '/BatchService.php';
 
 // Test database connection
 try {
-  $pdo = new PDO( 'sqlite:fx_trader.db' );
+  $db_file = 'data' . DIRECTORY_SEPARATOR . 'tradedesk.db';
+  $pdo = new PDO( 'sqlite:' . $db_file );
   $pdo->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION );
   echo "✓ Database connection successful\n";
 } catch ( PDOException $e ) {

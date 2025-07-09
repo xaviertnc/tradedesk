@@ -1,6 +1,7 @@
 <?php
 // SQLite Viewer SPA - Enhanced Edition
-$db_file = isset($_GET['db']) ? basename($_GET['db']) : 'fx_trader.db';
+$db_dir = dirname( __DIR__ ) . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR;
+$db_file = isset($_GET['db']) ? basename($_GET['db']) : $db_dir . 'tradedesk.db';
 $current_table = $_GET['table'] ?? null;
 $search_term = $_GET['search'] ?? '';
 $dark_mode = isset($_GET['dark']) ? filter_var($_GET['dark'], FILTER_VALIDATE_BOOLEAN) : false;

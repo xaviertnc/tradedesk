@@ -49,8 +49,8 @@ header( 'Content-Type: application/json' );
 
 // --- Database Setup ---
 function getDbConnection() {
-  $db_file = 'fx_trader.db';
-  
+  $db_file = 'data' . DIRECTORY_SEPARATOR . 'tradedesk.db';
+
   try {
     $pdo = new PDO( 'sqlite:' . $db_file );
     $pdo->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION );

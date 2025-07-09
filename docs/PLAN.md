@@ -10,16 +10,25 @@ Plan
 
 2. Phase 2: Batch & State Management (July 10th)
 2.1 [x] Database:
-2.1.1 [x] Create batches table
+2.1.1 [x] Create batches table (with all required columns: id, batch_uid, status, total_trades, processed_trades, failed_trades, created_at, updated_at)
 2.1.2 [x] Add batch_id foreign key to trades table
 2.1.3 [x] Add last_error text column to trades table
-2.1.4 [x] Create a new migration file for these schema changes
+2.1.4 [x] Add processed_trades, failed_trades, updated_at columns to batches table
+2.1.5 [x] Add status_message, quote_id, quote_rate, bank_trxn_id, deal_ref to trades table
+
 2.2 [x] Backend:
 2.2.1 [x] Implement a BatchService to handle the logic of creating batches
 2.2.2 [x] Create POST /api/batches endpoint for CSV upload
-2.2.3 [x] Create GET /api/batches endpoint to list all batches
-2.2.4 [x] Create GET /api/batches/{id} endpoint to get a specific batch
-2.2.5 [ ] Implement a background processing mechanism or cron job
+2.2.3 [x] Create GET /api/batches endpoint to list all batches with full state
+2.2.4 [x] Create GET /api/batches/{id} endpoint to get a specific batch and its trades
+2.2.5 [ ] Implement a background processing mechanism or cron job to process batches and update trade/batch state
+2.2.6 [ ] Add endpoints to start processing a batch, retry failed trades, and update batch/trade statuses
+
+2.3 [ ] Frontend:
+2.3.1 [ ] Show all batches (active + recent history) with status, counts, and timestamps
+2.3.2 [ ] Show all trades in a batch, with their status and error messages
+2.3.3 [ ] Allow user to select any batch as the "active" batch for processing or review
+2.3.4 [ ] Allow retrying failed trades in a batch
 
 3. Phase 3: Capitec API Integration (July 11th)
 3.1 [x] Implement HttpClientService

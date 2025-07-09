@@ -1,0 +1,72 @@
+# Database Schema Verification & Migration Tools
+The application includes robust database schema validation to ensure data integrity:
+- **Front-end validation**: The Settings page automatically verifies schema integrity when loaded
+- **Back-end validation**: API endpoint `?action=verify_schema` returns detailed schema status
+- **CLI validation**: Use `php verify-schema.php` for command-line schema checks
+
+## CLI Schema Verification, CI/CD Integration
+```bash
+# Check schema integrity
+php verify-schema.php
+# Run unit tests
+php tests/SchemaVerificationTest.php
+```
+Exit codes:
+- `0` = Schema is valid
+- `1` = Schema has issues (requires repair)
+
+## API Endpoints
+- `GET ?action=verify_schema` - Returns schema validation status
+- `GET ?action=get_migrations` - Lists available and ran migrations
+- `POST ?action=run_migration` - Executes a specific migration
+
+## Database Migration System
+The application uses a migration system to manage database schema changes:
+1. **Migration files** are stored in the `migrations/` directory
+2. **Migration tracking** is handled by the `migrations` table
+3. **Front-end interface** allows running migrations from the Settings page
+4. **CLI support** for automated migration execution
+
+## Development Workflow
+1. **Create migrations** for schema changes
+2. **Test migrations** using the CLI tools
+3. **Deploy migrations** through the front-end or CLI
+4. **Verify schema** after deployment
+5. **Monitor for issues** using the validation tools
+
+## Troubleshooting
+### Common Issues
+1. **"Schema is up to date" but runtime errors occur**
+   - The database may have missing columns despite migrations being marked as "ran"
+   - Run `php verify-schema.php` to check actual schema state
+   - Use `php repair-database.php` to fix inconsistencies
+2. **Migration fails with "already ran" error**
+   - Check the `migrations` table for the migration record
+   - If the migration didn't complete properly, manually delete the record and re-run
+3. **Missing tables or columns after deployment**
+   - Ensure all migration files are present in the `migrations/` directory
+   - Run `php repair-database.php` to fix any missing schema elements
+     This script will:
+      - Create missing tables
+      - Add missing columns  
+      - Run pending migrations
+      - Verify the final schema   
+
+### Schema Validation Response Format
+```json
+{
+  "success": true,
+  "is_valid": false,
+  "errors": {
+    "missing_tables": ["trades"],
+    "missing_columns": {
+      "clients": ["zar_account"],
+      "trades": ["batch_id", "quote_id"]
+    }
+  }
+}
+```
+### Manual Repair
+1. **Delete and recreate**: Remove/Rename `tradedesk.db` to let the app recreate it
+2. **Run specific migrations**: Use the Settings page or CLI to run specific migrations
+3. **Manual SQL**: Execute SQL commands directly on the database
