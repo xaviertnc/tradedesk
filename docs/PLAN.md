@@ -1,75 +1,175 @@
-Plan
-1. Phase 1: Foundation (July 8th)
-1.1 [x] Create project structure
-1.2 [x] Set up SQLite database
-1.3 [x] Create config table
-1.4 [x] Create trades table
-1.5 [x] Create logs table
-1.6 [x] Implement Migration Service
-1.7 [x] Implement basic logging
+# **Trade batching feature diagnosis & plan:**
 
-2. Phase 2: Batch & State Management (July 10th)
-2.1 [x] Database:
-2.1.1 [x] Create batches table (with all required columns: id, batch_uid, status, total_trades, processed_trades, failed_trades, created_at, updated_at)
-2.1.2 [x] Add batch_id foreign key to trades table
-2.1.3 [x] Add last_error text column to trades table
-2.1.4 [x] Add processed_trades, failed_trades, updated_at columns to batches table
-2.1.5 [x] Add status_message, quote_id, quote_rate, bank_trxn_id, deal_ref to trades table
+## **1. Your description of the problem**
 
-2.2 [x] Backend:
-2.2.1 [x] Implement a BatchService to handle the logic of creating batches
-2.2.2 [x] Create POST /api/batches endpoint for CSV upload
-2.2.3 [x] Create GET /api/batches endpoint to list all batches with full state
-2.2.4 [x] Create GET /api/batches/{id} endpoint to get a specific batch and its trades
-2.2.5 [ ] Implement a background processing mechanism or cron job to process batches and update trade/batch state
-2.2.6 [ ] Add endpoints to start processing a batch, retry failed trades, and update batch/trade statuses
+* Start a batch and wait for it to complete, but feedback can take a while.
+* Need to track & make decisions based on state of the batch and/or individual trades.
+* Multiple batches may be running/active at once.
+* Want to see past batches for reference.
+* System does not remember/track batch-trade relationships or batch history details.
 
-2.3 [ ] Frontend:
-2.3.1 [ ] Show all batches (active + recent history) with status, counts, and timestamps
-2.3.2 [ ] Show all trades in a batch, with their status and error messages
-2.3.3 [ ] Allow user to select any batch as the "active" batch for processing or review
-2.3.4 [ ] Allow retrying failed trades in a batch
+---
 
-3. Phase 3: Capitec API Integration (July 11th)
-3.1 [x] Implement HttpClientService
-3.2 [x] Implement CapitecApiService
-3.2.1 [x] Fix Content-Type header for bulk-balance API call
-3.3 [ ] Refactor Trade Processing:
-3.3.1 [ ] Integrate CapitecApiService calls into the BatchService
-3.3.2 [ ] Update the status of each trade and batch
-3.3.3 [ ] Store any API errors in the trades.last_error field
-3.4 [ ] Implement API Endpoints:
-3.4.1 [x] Implement OAuth2 token generation (/token)
-3.4.2 [ ] Implement createQuote
-3.4.3 [ ] Implement getLatestQuote
-3.4.4 [ ] Implement bookQuotedDeal
-3.4.5 [ ] Implement cancelQuote
-3.4.6 [ ] Implement getTransactionStatus
-3.4.7 [ ] Implement getBalance
-3.4.8 [ ] Implement getStatement
+## **Where you are lacking:**
 
-4. Phase 4: Gemini API Integration (July 12th)
-4.1 [ ] Implement GeminiApiService
-4.2 [ ] Create endpoint to analyze trade data for a completed batch
-4.3 [ ] Create endpoint to suggest new trades based on analysis
+1. **Batch Lifecycle & State Tracking**
 
-5. Phase 5: Frontend for Batch Management (July 13th)
-5.1 [x] Batch Creation & Monitoring:
-5.1.1 [x] Create UI for uploading a CSV file
-5.1.2 [x] Create a dashboard to view all batches and their statuses
-5.2 [x] Batch Detail View:
-5.2.1 [x] Create a view to inspect a single batch
-5.2.2 [x] Display a list of all trades within the batch
-5.2.3 [ ] Add a "Retry Failed Trades" button
-5.3 [ ] Refactor Existing UI:
-5.3.1 [ ] Remove the old single-trade form
-5.3.2 [ ] Ensure the trade status display is driven by the new batch endpoints
+   * No persistent model for tracking batches and their states (pending, running, complete, failed, etc).
+   * Batches aren't managed as first-class objects.
 
-6. Phase 6: Refinement & Testing (July 14th)
-6.1 [x] Add database schema verification script
-6.2 [x] Add PHPUnit test for schema verification
-6.3 [ ] Add tests for the BatchService
-6.4 [ ] Add tests for Capitec API endpoint integrations
-6.5 [ ] Add tests for Gemini API endpoints
-6.6 [ ] Refine UI/UX for the batch management interface
-6.7 [ ] Update documentation
+2. **Trade-to-Batch Linking**
+
+   * Individual trades aren’t linked to their batch after execution, so you can't retrieve batch composition or results.
+
+3. **Concurrent Batch Management**
+
+   * No structure for handling multiple concurrent batches and their individual statuses.
+
+4. **Batch History & Persistence**
+
+   * No persistent/logged history of batches or their constituent trades for later review.
+
+5. **Feedback/Async Completion**
+
+   * Feedback from batch processing is not associated back to the batch or surfaced to the user in a timely or structured way.
+
+6. **Decision Workflow**
+
+   * No interface or process for the user to act on completed, partially completed, or failed batches.
+
+---
+
+## **Proposed Fix Plan (Step by Step)**
+
+### **A. Model & Storage Redesign**
+
+1. **Batch Entity**
+
+   * Introduce a Batch model:
+     `id`, `created_at`, `status`, `completed_at`, `trades: [Trade IDs]`, `results`, `error_messages`, etc.
+2. **Trade Entity Update**
+
+   * Add a `batch_id` field to Trade model.
+3. **Batch Status Enum**
+
+   * E.g. `pending`, `running`, `success`, `partial_success`, `failed`, `cancelled`
+
+### **B. Core Logic**
+
+4. **Start Batch**
+
+   * When a batch is started, create a new Batch object (in DB or memory).
+   * Assign all trades to that batch (update their `batch_id` field).
+5. **Process Batches Async**
+
+   * Batches run independently. Use background jobs/async processing.
+   * As trades finish, update their status and report progress to the parent batch.
+   * When all trades are done, batch status transitions accordingly.
+
+### **C. State/Feedback/History**
+
+6. **Batch & Trade Query APIs**
+
+   * Endpoints/UI to:
+
+     * Get all active batches (with progress).
+     * Get batch details: status, start/end, constituent trades and their states.
+     * List N most recent batches, with filters.
+7. **Feedback/Completion Hooks**
+
+   * Notify user or trigger workflow when batch completes (success/failure/partial).
+   * Optionally trigger callbacks/actions for specific batch outcomes.
+
+### **D. UI/UX**
+
+8. **Batch Dashboard**
+
+   * Display:
+
+     * All active batches and their status/progress.
+     * Completed/recent batches.
+     * Drilldown: batch → trades.
+   * Allow viewing trade results/errors per batch.
+
+### **E. Edge Cases**
+
+9. **Concurrent Handling**
+
+   * Ensure system can handle multiple simultaneous batches robustly.
+10. **Persistence & Recovery**
+
+    * Batch and trade states should persist through restarts/crashes.
+
+---
+
+## **Pseudocode Plan**
+
+```plaintext
+# Models
+class Batch:
+    id
+    created_at
+    completed_at
+    status
+    trade_ids: list
+    results: dict
+    errors: dict
+
+class Trade:
+    id
+    batch_id
+    status
+    result
+    error
+
+# Start batch
+def start_batch(trade_list):
+    batch = Batch.create(status='pending', trade_ids=[])
+    for trade in trade_list:
+        trade.batch_id = batch.id
+        batch.trade_ids.append(trade.id)
+        trade.status = 'pending'
+    run_batch_async(batch.id)
+
+# Run batch async
+def run_batch_async(batch_id):
+    batch = get_batch(batch_id)
+    batch.status = 'running'
+    for trade_id in batch.trade_ids:
+        run_trade_async(trade_id, batch_id)
+    # As trades complete, update batch progress
+    # On completion of all trades, update batch.status
+
+# On trade completion
+def on_trade_complete(trade_id, batch_id, result, error):
+    trade = get_trade(trade_id)
+    trade.status = 'complete' if not error else 'failed'
+    trade.result = result
+    trade.error = error
+    update_batch_status(batch_id)
+
+def update_batch_status(batch_id):
+    batch = get_batch(batch_id)
+    # check status of all trades
+    if all trades complete:
+        batch.status = 'success' or 'partial' or 'failed'
+        batch.completed_at = now
+    # else keep running
+
+# Query API
+def get_batches(filter):
+    # returns recent/active batches
+
+def get_batch_details(batch_id):
+    # returns batch, trades, progress, results, errors
+```
+
+---
+
+### **Summary of Next Steps**
+
+* **Design/implement Batch model and persist it.**
+* **Link trades to batches.**
+* **Implement async/concurrent batch handling.**
+* **Expose query APIs for batch/trade status/history.**
+* **UI: Add batch dashboard and history view.**

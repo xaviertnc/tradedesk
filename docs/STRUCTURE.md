@@ -26,8 +26,8 @@
 │   │   ├── GetTrxnStatus.md              # Get transaction status specification (1.9KB, 86 lines)
 │   │   ├── OAuthToken.md                 # OAuth token specification (1.8KB, 74 lines)
 │   │   └── StatementEquiry.md            # Statement enquiry specification (3.2KB, 133 lines)
-│   ├── PLAN.md                           # Project planning and todos (3.4KB, 75 lines)
-│   ├── PRD.md                            # Product Requirements Document (4.5KB, 94 lines)
+│   ├── PLAN.md                           # Project planning
+│   ├── TODO.md                           # Current todos
 │   └── STRUCTURE.md                      # This file - project structure documentation
 ├── GeminiApiService.php              # Gemini API integration (1.8KB, 49 lines)
 ├── HttpClientService.php             # HTTP client service (3.3KB, 95 lines)
