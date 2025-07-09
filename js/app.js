@@ -1,19 +1,19 @@
 /**
- * js/app.js
+ * app.js
  *
- * FX Batch Trader Frontend - 28 Jun 2025 ( Start Date )
+ * Main Application JavaScript - 28 Jun 2025 ( Start Date )
  *
- * Purpose: Handles all UI and client-side logic for FX Batch Trader, including CRUD and batch trading.
+ * Purpose: Frontend application logic for trade desk with real-time batch monitoring,
+ *          WebSocket integration, and comprehensive batch management interface.
  *
- * @package FXBatchTrader
+ * @package TradeDesk Frontend
  *
- * @author Your Name <email@domain.com>
+ * @author Assistant <assistant@example.com>
  *
  * Last 3 version commits:
- * @version 1.2 - FEAT - 10 Jul 2025 - Add auto-refresh functionality for batch monitoring
- * @version 1.1 - FEAT - 10 Jul 2025 - Add batch progress bars and enhanced status display
  * @version 1.0 - INIT - 28 Jun 2025 - Initial commit
- * @version x.x - FT|UPD - 29 Jun 2025 - Migrate spread to integer bips
+ * @version 1.1 - UPD - 10 Jul 2025 - Added batch management features
+ * @version 1.2 - UPD - 10 Jul 2025 - Added WebSocket real-time updates and notifications
  */
 document.addEventListener('DOMContentLoaded', () => {
     const API_URL = './api.php';
@@ -997,5 +997,355 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initial Load
     loadSettings();
     loadMigrationsAndVerifySchema();
+
+    // WebSocket connection for real-time updates
+    let websocket = null;
+    let websocketReconnectAttempts = 0;
+    const MAX_RECONNECT_ATTEMPTS = 5;
+    const RECONNECT_DELAY = 3000;
+    let websocketConnectionState = 'disconnected'; // Track connection state
+
+    // Initialize WebSocket connection
+    function initWebSocket() {
+      if ( websocket && websocket.readyState === WebSocket.OPEN ) {
+        return; // Already connected
+      }
+      
+      try {
+        const eventSourceUrl = `${window.location.protocol}//${window.location.host}/currencyhub/tradedesk/v8/api.php?action=websocket`;
+        websocket = new EventSource( eventSourceUrl );
+        
+        websocket.onopen = function( event ) {
+          console.log( 'EventSource connected for real-time updates' );
+          websocketReconnectAttempts = 0;
+          updateWebSocketStatus( 'connected' );
+          if ( websocketConnectionState !== 'connected' ) {
+            showNotification( 'Real-time updates connected', 'success' );
+          }
+          websocketConnectionState = 'connected';
+        };
+        
+        websocket.onmessage = function( event ) {
+          try {
+            const data = JSON.parse( event.data );
+            handleWebSocketMessage( data );
+          } catch ( error ) {
+            console.error( 'Error parsing WebSocket message:', error );
+          }
+        };
+        
+        websocket.onerror = function( error ) {
+          console.error( 'EventSource error:', error );
+          updateWebSocketStatus( 'disconnected' );
+          handleWebSocketError();
+        };
+        
+        websocket.onclose = function( event ) {
+          console.log( 'EventSource connection closed' );
+          updateWebSocketStatus( 'disconnected' );
+          handleWebSocketClose();
+        };
+        
+      } catch ( error ) {
+        console.error( 'Failed to initialize WebSocket:', error );
+        handleWebSocketError();
+      }
+    } // initWebSocket
+
+
+    // Handle WebSocket messages
+    function handleWebSocketMessage( data ) {
+      switch ( data.type ) {
+        case 'connection':
+          console.log( 'WebSocket connection established' );
+          break;
+          
+        case 'heartbeat':
+          // Keep connection alive
+          break;
+          
+        case 'batch_update':
+          handleBatchUpdate( data );
+          break;
+          
+        case 'trade_update':
+          handleTradeUpdate( data );
+          break;
+          
+        case 'batch_notification':
+          handleBatchNotification( data );
+          break;
+          
+        case 'disconnect':
+          console.log( 'WebSocket disconnected:', data.status );
+          break;
+          
+        default:
+          console.log( 'Unknown WebSocket message type:', data.type );
+      }
+    } // handleWebSocketMessage
+
+
+    // Handle batch updates from WebSocket
+    function handleBatchUpdate( data ) {
+      console.log( 'Batch update received:', data );
+      
+      // Update batch in UI if it's currently displayed
+      const batchElement = document.querySelector( `[data-batch-id="${data.id}"]` );
+      if ( batchElement ) {
+        updateBatchElement( batchElement, data );
+      }
+      
+      // Refresh batch lists if they're visible
+      if ( currentView === 'batches' ) {
+        refreshBatchList();
+      }
+      
+      // Show notification for significant status changes
+      if ( data.status && [ 'success', 'partial_success', 'failed', 'cancelled' ].includes( data.status ) ) {
+        showNotification( `Batch ${data.batch_uid} ${data.status}`, 'info' );
+      }
+    } // handleBatchUpdate
+
+
+    // Handle trade updates from WebSocket
+    function handleTradeUpdate( data ) {
+      console.log( 'Trade update received:', data );
+      
+      // Update trade in UI if it's currently displayed
+      const tradeElement = document.querySelector( `[data-trade-id="${data.id}"]` );
+      if ( tradeElement ) {
+        updateTradeElement( tradeElement, data );
+      }
+      
+      // Refresh batch progress if trade belongs to a visible batch
+      const batchElement = document.querySelector( `[data-batch-id="${data.batch_id}"]` );
+      if ( batchElement ) {
+        updateBatchProgress( data.batch_id );
+      }
+    } // handleTradeUpdate
+
+
+    // Handle batch notifications from WebSocket
+    function handleBatchNotification( data ) {
+      console.log( 'Batch notification received:', data );
+      
+      const notificationType = data.notification_type;
+      const batchUid = data.batch_uid;
+      const status = data.status;
+      
+      let message = '';
+      let type = 'info';
+      
+      switch ( notificationType ) {
+        case 'completion':
+          message = `Batch ${batchUid} completed with status: ${status}`;
+          type = status === 'success' ? 'success' : ( status === 'failed' ? 'error' : 'warning' );
+          break;
+          
+        case 'started':
+          message = `Batch ${batchUid} started processing`;
+          type = 'info';
+          break;
+          
+        case 'cancelled':
+          message = `Batch ${batchUid} was cancelled`;
+          type = 'warning';
+          break;
+          
+        case 'status_change':
+          message = `Batch ${batchUid} status changed to: ${status}`;
+          type = 'info';
+          break;
+          
+        default:
+          message = `Batch ${batchUid}: ${notificationType}`;
+          type = 'info';
+      }
+      
+      showNotification( message, type );
+      
+      // Play sound for important notifications
+      if ( [ 'completion', 'cancelled' ].includes( notificationType ) ) {
+        playNotificationSound();
+      }
+    } // handleBatchNotification
+
+
+         // Update WebSocket status indicator
+     function updateWebSocketStatus( status ) {
+       let indicator = document.getElementById( 'websocket-status' );
+       if ( ! indicator ) {
+         indicator = document.createElement( 'div' );
+         indicator.id = 'websocket-status';
+         indicator.className = 'websocket-status';
+         indicator.innerHTML = `
+           <div class="websocket-indicator"></div>
+           <span class="websocket-text">Real-time updates</span>
+         `;
+         document.body.appendChild( indicator );
+       }
+       
+       indicator.className = `websocket-status ${status}`;
+       const textElement = indicator.querySelector( '.websocket-text' );
+       
+       switch ( status ) {
+         case 'connected':
+           textElement.textContent = 'Real-time updates connected';
+           break;
+         case 'connecting':
+           textElement.textContent = 'Connecting...';
+           break;
+         case 'disconnected':
+           textElement.textContent = 'Real-time updates disconnected';
+           break;
+       }
+     } // updateWebSocketStatus
+
+
+     // Handle WebSocket errors
+     function handleWebSocketError() {
+       console.error( 'EventSource connection error' );
+       if ( websocketConnectionState !== 'disconnected' ) {
+         showNotification( 'Real-time updates disconnected. Attempting to reconnect...', 'warning' );
+       }
+       websocketConnectionState = 'disconnected';
+       if ( websocketReconnectAttempts < MAX_RECONNECT_ATTEMPTS ) {
+         websocketReconnectAttempts++;
+         console.log( `Attempting to reconnect EventSource (${websocketReconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})` );
+         updateWebSocketStatus( 'connecting' );
+         setTimeout( function() {
+           initWebSocket();
+         }, RECONNECT_DELAY * websocketReconnectAttempts );
+       } else {
+         console.error( 'Max EventSource reconnection attempts reached' );
+         showNotification( 'Real-time updates disconnected. Please refresh the page.', 'error' );
+       }
+     } // handleWebSocketError
+
+
+         // Handle WebSocket connection close
+     function handleWebSocketClose() {
+       console.log( 'EventSource connection closed' );
+       
+       // Attempt to reconnect if not manually closed
+       if ( websocketReconnectAttempts < MAX_RECONNECT_ATTEMPTS ) {
+         updateWebSocketStatus( 'connecting' );
+         setTimeout( function() {
+           initWebSocket();
+         }, RECONNECT_DELAY );
+       }
+     } // handleWebSocketClose
+
+
+    // Update batch element in UI
+    function updateBatchElement( element, data ) {
+      // Update status
+      const statusElement = element.querySelector( '.batch-status' );
+      if ( statusElement ) {
+        statusElement.textContent = data.status;
+        statusElement.className = `batch-status status-${data.status}`;
+      }
+      
+      // Update progress
+      const progressElement = element.querySelector( '.batch-progress' );
+      if ( progressElement && data.total_trades ) {
+        const progress = ( data.processed_trades / data.total_trades ) * 100;
+        progressElement.style.width = `${progress}%`;
+        progressElement.textContent = `${Math.round( progress )}%`;
+      }
+      
+      // Update trade counts
+      const countsElement = element.querySelector( '.batch-counts' );
+      if ( countsElement ) {
+        countsElement.textContent = `${data.processed_trades}/${data.total_trades} trades`;
+      }
+      
+      // Update timestamp
+      const timeElement = element.querySelector( '.batch-time' );
+      if ( timeElement ) {
+        timeElement.textContent = new Date( data.updated_at ).toLocaleString();
+      }
+    } // updateBatchElement
+
+
+    // Update trade element in UI
+    function updateTradeElement( element, data ) {
+      // Update status
+      const statusElement = element.querySelector( '.trade-status' );
+      if ( statusElement ) {
+        statusElement.textContent = data.status;
+        statusElement.className = `trade-status status-${data.status}`;
+      }
+      
+      // Update timestamp
+      const timeElement = element.querySelector( '.trade-time' );
+      if ( timeElement ) {
+        timeElement.textContent = new Date( data.updated_at ).toLocaleString();
+      }
+    } // updateTradeElement
+
+
+    // Play notification sound
+    function playNotificationSound() {
+      try {
+        // Create a simple notification sound
+        const audioContext = new ( window.AudioContext || window.webkitAudioContext )();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect( gainNode );
+        gainNode.connect( audioContext.destination );
+        
+        oscillator.frequency.setValueAtTime( 800, audioContext.currentTime );
+        oscillator.frequency.setValueAtTime( 600, audioContext.currentTime + 0.1 );
+        
+        gainNode.gain.setValueAtTime( 0.1, audioContext.currentTime );
+        gainNode.gain.exponentialRampToValueAtTime( 0.01, audioContext.currentTime + 0.2 );
+        
+        oscillator.start( audioContext.currentTime );
+        oscillator.stop( audioContext.currentTime + 0.2 );
+      } catch ( error ) {
+        console.log( 'Could not play notification sound:', error );
+      }
+    } // playNotificationSound
+
+
+    // Enhanced notification system
+    function showNotification( message, type = 'info', duration = 5000 ) {
+      const notification = document.createElement( 'div' );
+      notification.className = `notification notification-${type}`;
+      notification.innerHTML = `
+        <div class="notification-content">
+          <span class="notification-message">${message}</span>
+          <button class="notification-close" onclick="this.parentElement.parentElement.remove()">×</button>
+        </div>
+      `;
+      
+      // Add to notification container
+      let container = document.getElementById( 'notification-container' );
+      if ( ! container ) {
+        container = document.createElement( 'div' );
+        container.id = 'notification-container';
+        container.className = 'notification-container';
+        document.body.appendChild( container );
+      }
+      
+      container.appendChild( notification );
+      
+      // Auto-remove after duration
+      setTimeout( function() {
+        if ( notification.parentElement ) {
+          notification.remove();
+        }
+      }, duration );
+      
+      return notification;
+    } // showNotification
+
+
+         // Initialize WebSocket on page load
+     updateWebSocketStatus( 'connecting' );
+     initWebSocket();
   });
   

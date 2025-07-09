@@ -76,11 +76,11 @@
   - [x] **3.3.2** `GET /api/batches/{id}/results` - Get batch results summary
   - [x] **3.3.3** `GET /api/batches/{id}/errors` - Get batch error details
 
-- [ ] **3.4** Implement batch search and filtering
+- [x] **3.4** Implement batch search and filtering
   - [x] **3.4.1** Add date range filtering (basic implementation)
-  - [ ] **3.4.2** Add status-based filtering
-  - [ ] **3.4.3** Add pagination support
-  - [ ] **3.4.4** Add sorting options (date, status, size)
+  - [x] **3.4.2** Add status-based filtering
+  - [x] **3.4.3** Add pagination support
+  - [x] **3.4.4** Add sorting options (date, status, size)
 
 ---
 
@@ -106,9 +106,9 @@
   - [x] **4.3.4** Add trade result/error display
 
 - [x] **4.4** Implement real-time updates
-  - [ ] **4.4.1** Add WebSocket connection for live updates
+  - [x] **4.4.1** Add WebSocket connection for live updates
   - [x] **4.4.2** Implement progress bar animations
-  - [ ] **4.4.3** Add batch completion notifications
+  - [x] **4.4.3** Add batch completion notifications
   - [x] **4.4.4** Create auto-refresh functionality
 
 ---

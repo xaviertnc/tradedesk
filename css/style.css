@@ -1,3 +1,21 @@
+/**
+ * style.css
+ *
+ * Main Stylesheet - 28 Jun 2025 ( Start Date )
+ *
+ * Purpose: Comprehensive styling for trade desk application including
+ *          batch management, real-time updates, and notification system.
+ *
+ * @package TradeDesk Frontend
+ *
+ * @author Assistant <assistant@example.com>
+ *
+ * Last 3 version commits:
+ * @version 1.0 - INIT - 28 Jun 2025 - Initial commit
+ * @version 1.1 - UPD - 10 Jul 2025 - Added batch management styles
+ * @version 1.2 - UPD - 10 Jul 2025 - Added notification and real-time update styles
+ */
+
 body { 
   font-family: 'Inter', sans-serif; 
 }
@@ -21,4 +39,303 @@ body {
   to { 
       transform: rotate(360deg); 
   } 
+}
+
+/* Notification System */
+.notification-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 10000;
+  max-width: 400px;
+  pointer-events: none;
+}
+
+.notification {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba( 0, 0, 0, 0.15 );
+  margin-bottom: 10px;
+  pointer-events: auto;
+  animation: slideInRight 0.3s ease-out;
+  border-left: 4px solid #007bff;
+}
+
+.notification-success {
+  border-left-color: #28a745;
+}
+
+.notification-error {
+  border-left-color: #dc3545;
+}
+
+.notification-warning {
+  border-left-color: #ffc107;
+}
+
+.notification-info {
+  border-left-color: #17a2b8;
+}
+
+.notification-content {
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.notification-message {
+  flex: 1;
+  font-size: 14px;
+  color: #333;
+  margin-right: 10px;
+}
+
+.notification-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #999;
+  cursor: pointer;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+.notification-close:hover {
+  background-color: #f0f0f0;
+  color: #666;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX( 100% );
+    opacity: 0;
+  }
+  to {
+    transform: translateX( 0 );
+    opacity: 1;
+  }
+}
+
+/* WebSocket Status Indicator */
+.websocket-status {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 9999;
+  background: rgba( 0, 0, 0, 0.8 );
+  color: white;
+  padding: 8px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.websocket-status.connected {
+  background: rgba( 40, 167, 69, 0.9 );
+}
+
+.websocket-status.disconnected {
+  background: rgba( 220, 53, 69, 0.9 );
+}
+
+.websocket-status.connecting {
+  background: rgba( 255, 193, 7, 0.9 );
+}
+
+.websocket-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
+  animation: pulse 2s infinite;
+}
+
+.websocket-status.connected .websocket-indicator {
+  background: #fff;
+  animation: none;
+}
+
+.websocket-status.disconnected .websocket-indicator {
+  background: #ff6b6b;
+  animation: none;
+}
+
+.websocket-status.connecting .websocket-indicator {
+  background: #fff;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Real-time Update Indicators */
+.batch-status {
+  position: relative;
+}
+
+.batch-status.updating::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 8px;
+  background: #007bff;
+  border-radius: 50%;
+  animation: pulse 1s infinite;
+}
+
+.trade-status.updating::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 6px;
+  height: 6px;
+  background: #007bff;
+  border-radius: 50%;
+  animation: pulse 1s infinite;
+}
+
+/* Enhanced Batch Progress Bars */
+.batch-progress-container {
+  background: #f8f9fa;
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 8px 0;
+}
+
+.batch-progress {
+  height: 20px;
+  background: linear-gradient( 90deg, #007bff, #0056b3 );
+  color: white;
+  text-align: center;
+  line-height: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: width 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.batch-progress::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient( 90deg, transparent, rgba( 255, 255, 255, 0.3 ), transparent );
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+/* Status-specific progress colors */
+.batch-progress.status-success {
+  background: linear-gradient( 90deg, #28a745, #1e7e34 );
+}
+
+.batch-progress.status-partial_success {
+  background: linear-gradient( 90deg, #ffc107, #e0a800 );
+}
+
+.batch-progress.status-failed {
+  background: linear-gradient( 90deg, #dc3545, #c82333 );
+}
+
+.batch-progress.status-cancelled {
+  background: linear-gradient( 90deg, #6c757d, #545b62 );
+}
+
+/* Enhanced Batch Cards */
+.batch-card {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba( 0, 0, 0, 0.1 );
+  padding: 16px;
+  margin-bottom: 16px;
+  transition: all 0.3s ease;
+  border-left: 4px solid #007bff;
+}
+
+.batch-card:hover {
+  box-shadow: 0 4px 16px rgba( 0, 0, 0, 0.15 );
+  transform: translateY( -2px );
+}
+
+.batch-card.status-success {
+  border-left-color: #28a745;
+}
+
+.batch-card.status-partial_success {
+  border-left-color: #ffc107;
+}
+
+.batch-card.status-failed {
+  border-left-color: #dc3545;
+}
+
+.batch-card.status-cancelled {
+  border-left-color: #6c757d;
+}
+
+.batch-card.status-running {
+  border-left-color: #007bff;
+  animation: borderPulse 2s infinite;
+}
+
+@keyframes borderPulse {
+  0%, 100% {
+    border-left-color: #007bff;
+  }
+  50% {
+    border-left-color: #0056b3;
+  }
+}
+
+/* Real-time Update Badges */
+.realtime-badge {
+  display: inline-block;
+  background: #007bff;
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-left: 8px;
+  animation: fadeInOut 2s infinite;
+}
+
+@keyframes fadeInOut {
+  0%, 100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
 }

@@ -48,8 +48,7 @@ function debug_log( $var, $pretext = '', $minDebugLevel = 1, $type = 'DEBUG', $f
   file_put_contents( $log_file, $log_entry . PHP_EOL, FILE_APPEND );
 }
 
-// --- Response Header ---
-header( 'Content-Type: application/json' );
+// --- Response Header (will be overridden for WebSocket) ---
 
 // --- Database Setup ---
 function getDbConnection() {
@@ -142,6 +141,11 @@ function getDbConnection() {
 $action = $_GET['action'] ?? '';
 $db = getDbConnection();
 
+// Set JSON content type for all actions except WebSocket
+if ( $action !== 'websocket' ) {
+  header( 'Content-Type: application/json' );
+}
+
 try {
   debug_log( "Processing action: '{$action}'" );
   switch ( $action ) {
@@ -175,6 +179,8 @@ try {
     case 'get_next_batch_from_queue': handleGetNextBatchFromQueue( $db ); break;
     case 'get_market_analysis': handleGetMarketAnalysis( $db ); break;
     case 'verify_schema': handleVerifySchema( $db ); break;
+    case 'websocket': handleWebSocket( $db ); break; // New WebSocket endpoint
+    case 'search_batches': handleSearchBatches( $db ); break; // New Search endpoint
     default:
       http_response_code( 404 );
       echo json_encode( [ 'success' => false, 'message' => 'Action not found' ] );
@@ -923,3 +929,79 @@ function handleGetNextBatchFromQueue( $db ) {
     echo json_encode( [ 'success' => false, 'message' => 'Failed to get next batch from queue: ' . $e->getMessage() ] );
   }
 } // handleGetNextBatchFromQueue
+
+// WebSocket support for real-time updates
+function handleWebSocket( $db ) {
+  // Suppress all output and errors for SSE
+  @ini_set( 'display_errors', 0 );
+  @ini_set( 'display_startup_errors', 0 );
+  @error_reporting( 0 );
+  while ( ob_get_level() > 0 ) { ob_end_clean(); }
+
+  header( 'Content-Type: text/event-stream' );
+  header( 'Cache-Control: no-cache' );
+  header( 'Connection: keep-alive' );
+  header( 'Access-Control-Allow-Origin: *' );
+  header( 'Access-Control-Allow-Headers: Cache-Control' );
+  
+  // Send initial connection message
+  echo "data: " . json_encode( [ 'type' => 'connection', 'status' => 'connected', 'timestamp' => time() ] ) . "\n\n";
+  ob_flush();
+  flush();
+  
+  // Keep connection alive and send updates
+  $lastUpdate = time();
+  $maxDuration = 300; // 5 minutes max connection
+  
+  while ( ( time() - $lastUpdate ) < $maxDuration ) {
+    // Check for new batch updates
+    $batchService = new BatchService( $db );
+    $activeBatches = $batchService->getActiveBatches();
+    $recentUpdates = $batchService->getRecentUpdates( $lastUpdate );
+    
+    if ( ! empty( $recentUpdates ) ) {
+      foreach ( $recentUpdates as $update ) {
+        echo "data: " . json_encode( $update ) . "\n\n";
+        ob_flush();
+        flush();
+      }
+      $lastUpdate = time();
+    }
+    
+    // Send heartbeat every 30 seconds
+    if ( ( time() - $lastUpdate ) >= 30 ) {
+      echo "data: " . json_encode( [ 'type' => 'heartbeat', 'timestamp' => time() ] ) . "\n\n";
+      ob_flush();
+      flush();
+      $lastUpdate = time();
+    }
+    
+    usleep( 1000000 ); // Sleep for 1 second
+  }
+  
+  echo "data: " . json_encode( [ 'type' => 'disconnect', 'status' => 'timeout', 'timestamp' => time() ] ) . "\n\n";
+  exit;
+}
+
+// Enhanced batch search and filtering
+function handleSearchBatches( $db ) {
+  $status = $_GET['status'] ?? null;
+  $dateFrom = $_GET['date_from'] ?? null;
+  $dateTo = $_GET['date_to'] ?? null;
+  $page = (int) ( $_GET['page'] ?? 1 );
+  $limit = (int) ( $_GET['limit'] ?? 20 );
+  $sortBy = $_GET['sort_by'] ?? 'created_at';
+  $sortOrder = $_GET['sort_order'] ?? 'DESC';
+  
+  $filters = [];
+  if ( $status ) $filters['status'] = $status;
+  if ( $dateFrom ) $filters['date_from'] = $dateFrom;
+  if ( $dateTo ) $filters['date_to'] = $dateTo;
+  
+  $batchService = new BatchService( $db );
+  $result = $batchService->searchBatches( $filters, $page, $limit, $sortBy, $sortOrder );
+  
+  header( 'Content-Type: application/json' );
+  echo json_encode( $result );
+  exit;
+}

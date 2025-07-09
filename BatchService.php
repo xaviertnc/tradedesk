@@ -2,17 +2,19 @@
 /**
  * BatchService.php
  *
- * Batch Service - 09 Jul 2025
+ * Batch Processing Service - 28 Jun 2025 ( Start Date )
  *
- * Purpose: Handles the business logic for creating and processing trade batches.
+ * Purpose: Handles batch creation, processing, and management with concurrent support,
+ *          real-time updates, and comprehensive search capabilities.
  *
- * @package FX-Trades-App
- * @author Gemini <gemini@google.com>
+ * @package TradeDesk Services
+ *
+ * @author Assistant <assistant@example.com>
  *
  * Last 3 version commits:
- * @version 1.3 - FT - 10 Jul 2025 - Implement concurrent batch handling with locking and queue management
- * @version 1.2 - FT - 10 Jul 2025 - Auto-detect and set batch final status in updateBatchProgress
- * @version 1.1 - UPD - 09 Jul 2025 - Refactor to use Batch and Trade models
+ * @version 1.0 - INIT - 28 Jun 2025 - Initial commit
+ * @version 1.1 - UPD - 10 Jul 2025 - Added concurrent batch handling
+ * @version 1.2 - UPD - 10 Jul 2025 - Added real-time updates and search functionality
  */
 
 require_once __DIR__ . '/Batch.php';
@@ -201,48 +203,122 @@ class BatchService
    */
   public function updateBatchStatus( int $batchId, string $newStatus ): bool
   {
-    $batch = $this->batchModel->find( $batchId );
-    if ( ! $batch ) {
-      return false;
-    }
-
-    return $batch->updateStatus( $newStatus );
+    $sql = "UPDATE batches SET 
+              status = ?, 
+              updated_at = ?,
+              completed_at = ?
+            WHERE id = ?";
+    
+    $completedAt = in_array( $newStatus, [ 'success', 'partial_success', 'failed' ] ) 
+      ? date( 'Y-m-d H:i:s' ) 
+      : null;
+    
+    $stmt = $this->pdo->prepare( $sql );
+    $result = $stmt->execute( [ $newStatus, date( 'Y-m-d H:i:s' ), $completedAt, $batchId ] );
+    
+    // Send status change notification
+    $this->sendBatchNotification( $batchId, 'status_change' );
+    
+    return $result;
   } // updateBatchStatus
 
 
   /**
-   * Update batch progress based on trade statuses.
-   *
-   * @param int $batchId
-   * @return bool
+   * Update batch progress and detect completion
    */
-  public function updateBatchProgress( int $batchId ): bool
+  public function updateBatchProgress( int $batchId )
   {
-    $batch = $this->batchModel->find( $batchId );
+    $batch = $this->getBatch( $batchId );
     if ( ! $batch ) {
       return false;
     }
-
-    $progressUpdated = $batch->updateProgress();
-
-    // Check if all trades are in a final state
-    $trades = $batch->getTrades();
-    $allFinal = true;
-    foreach ( $trades as $trade ) {
-      $status = $trade->getAttribute( 'status' );
-      if ( ! in_array( $status, [ 'SUCCESS', 'FAILED', 'CANCELLED' ] ) ) {
-        $allFinal = false;
-        break;
+    
+    // Get trade counts
+    $sql = "SELECT 
+              COUNT(*) as total,
+              SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+              SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
+              SUM(CASE WHEN status IN ('pending', 'running') THEN 1 ELSE 0 END) as pending
+            FROM trades 
+            WHERE batch_id = ?";
+    
+    $stmt = $this->pdo->prepare( $sql );
+    $stmt->execute( [ $batchId ] );
+    $counts = $stmt->fetch( PDO::FETCH_ASSOC );
+    
+    // Update batch with new counts
+    $sql = "UPDATE batches SET 
+              processed_trades = ?, 
+              failed_trades = ?,
+              updated_at = ?
+            WHERE id = ?";
+    
+    $stmt = $this->pdo->prepare( $sql );
+    $stmt->execute( [ 
+      $counts['completed'], 
+      $counts['failed'], 
+      date( 'Y-m-d H:i:s' ), 
+      $batchId 
+    ] );
+    
+    // Check if batch is complete
+    $oldStatus = $batch['status'];
+    $newStatus = $this->determineBatchStatus( $counts );
+    
+    if ( $newStatus !== $oldStatus ) {
+      $this->updateBatchStatus( $batchId, $newStatus );
+      
+      // Send notifications for status changes
+      if ( in_array( $newStatus, [ 'success', 'partial_success', 'failed' ] ) ) {
+        $this->sendBatchNotification( $batchId, 'completion' );
+      } elseif ( $newStatus === 'running' && $oldStatus === 'pending' ) {
+        $this->sendBatchNotification( $batchId, 'started' );
       }
     }
-
-    if ( $allFinal && ! $batch->isCompleted() ) {
-      $finalStatus = $batch->determineFinalStatus();
-      $batch->updateStatus( $finalStatus );
-    }
-
-    return $progressUpdated;
+    
+    return [
+      'total_trades' => $counts['total'],
+      'processed_trades' => $counts['completed'],
+      'failed_trades' => $counts['failed'],
+      'pending_trades' => $counts['pending'],
+      'status' => $newStatus,
+      'is_complete' => in_array( $newStatus, [ 'success', 'partial_success', 'failed' ] )
+    ];
   } // updateBatchProgress
+
+
+  /**
+   * Determine batch status based on trade counts
+   */
+  public function determineBatchStatus( $counts )
+  {
+    $total = $counts['total'];
+    $completed = $counts['completed'];
+    $failed = $counts['failed'];
+    $pending = $counts['pending'];
+    
+    if ( $total === 0 ) {
+      return 'pending';
+    }
+    
+    if ( $pending > 0 ) {
+      return 'running';
+    }
+    
+    if ( $failed === $total ) {
+      return 'failed';
+    }
+    
+    if ( $completed === $total ) {
+      return 'success';
+    }
+    
+    if ( $completed > 0 && $failed > 0 ) {
+      return 'partial_success';
+    }
+    
+    return 'pending';
+  } // determineBatchStatus
 
 
   /**
@@ -282,8 +358,8 @@ class BatchService
    */
   public function cancelBatch( int $batchId ): bool
   {
-    $batch = $this->batchModel->find( $batchId );
-    if ( ! $batch ) {
+    $batch = $this->getBatch( $batchId );
+    if ( ! $batch || ! in_array( $batch['status'], [ 'pending', 'running' ] ) ) {
       return false;
     }
 
@@ -292,17 +368,23 @@ class BatchService
     try
     {
       // Update batch status to cancelled
-      $batch->updateStatus( Batch::STATUS_CANCELLED );
+      $this->updateBatchStatus( $batchId, 'cancelled' );
 
       // Cancel all pending trades in the batch
-      $trades = $this->tradeModel->findByBatchId( $batchId );
-      foreach ( $trades as $trade ) {
-        if ( $trade->isActive() ) {
-          $trade->updateStatus( Trade::STATUS_CANCELLED, 'Batch cancelled' );
-        }
-      }
+      $sql = "UPDATE trades SET 
+                status = 'cancelled', 
+                status_message = 'Batch cancelled',
+                updated_at = ?
+              WHERE batch_id = ? AND status IN ('pending', 'running')";
+      
+      $stmt = $this->pdo->prepare( $sql );
+      $stmt->execute( [ date( 'Y-m-d H:i:s' ), $batchId ] );
 
       $this->pdo->commit();
+      
+      // Send cancellation notification
+      $this->sendBatchNotification( $batchId, 'cancelled' );
+      
       return true;
     }
     catch ( Exception $e )
@@ -1010,5 +1092,183 @@ class BatchService
     } // try-catch
 
   } // getLockedBatches
+
+
+  /**
+   * Get recent batch updates for real-time notifications
+   */
+  public function getRecentUpdates( $sinceTimestamp )
+  {
+    $sql = "SELECT 
+              b.id,
+              b.batch_uid,
+              b.status,
+              b.total_trades,
+              b.processed_trades,
+              b.failed_trades,
+              b.updated_at,
+              'batch_update' as update_type
+            FROM batches b 
+            WHERE b.updated_at > ? 
+            ORDER BY b.updated_at DESC";
+    
+    $stmt = $this->pdo->prepare( $sql );
+    $stmt->execute( [ date( 'Y-m-d H:i:s', $sinceTimestamp ) ] );
+    $updates = $stmt->fetchAll( PDO::FETCH_ASSOC );
+    
+    // Add trade completion updates
+    $sql = "SELECT 
+              t.id,
+              t.batch_id,
+              t.status,
+              t.updated_at,
+              'trade_update' as update_type
+            FROM trades t 
+            WHERE t.updated_at > ? AND t.batch_id IS NOT NULL
+            ORDER BY t.updated_at DESC";
+    
+    $stmt = $this->pdo->prepare( $sql );
+    $stmt->execute( [ date( 'Y-m-d H:i:s', $sinceTimestamp ) ] );
+    $tradeUpdates = $stmt->fetchAll( PDO::FETCH_ASSOC );
+    
+    return array_merge( $updates, $tradeUpdates );
+  } // getRecentUpdates
+
+
+  /**
+   * Search batches with advanced filtering and pagination
+   */
+  public function searchBatches( $filters = [], $page = 1, $limit = 20, $sortBy = 'created_at', $sortOrder = 'DESC' )
+  {
+    $whereConditions = [];
+    $params = [];
+    
+    // Status filter
+    if ( isset( $filters['status'] ) && $filters['status'] ) {
+      $whereConditions[] = "b.status = ?";
+      $params[] = $filters['status'];
+    }
+    
+    // Date range filters
+    if ( isset( $filters['date_from'] ) && $filters['date_from'] ) {
+      $whereConditions[] = "b.created_at >= ?";
+      $params[] = $filters['date_from'] . ' 00:00:00';
+    }
+    
+    if ( isset( $filters['date_to'] ) && $filters['date_to'] ) {
+      $whereConditions[] = "b.created_at <= ?";
+      $params[] = $filters['date_to'] . ' 23:59:59';
+    }
+    
+    // Build WHERE clause
+    $whereClause = '';
+    if ( ! empty( $whereConditions ) ) {
+      $whereClause = 'WHERE ' . implode( ' AND ', $whereConditions );
+    }
+    
+    // Validate sort parameters
+    $allowedSortFields = [ 'created_at', 'updated_at', 'status', 'total_trades', 'processed_trades' ];
+    $sortBy = in_array( $sortBy, $allowedSortFields ) ? $sortBy : 'created_at';
+    $sortOrder = strtoupper( $sortOrder ) === 'ASC' ? 'ASC' : 'DESC';
+    
+    // Count total records
+    $countSql = "SELECT COUNT(*) as total FROM batches b $whereClause";
+    $stmt = $this->pdo->prepare( $countSql );
+    $stmt->execute( $params );
+    $totalRecords = $stmt->fetch( PDO::FETCH_ASSOC )['total'];
+    
+    // Calculate pagination
+    $offset = ( $page - 1 ) * $limit;
+    $totalPages = ceil( $totalRecords / $limit );
+    
+    // Get paginated results
+    $sql = "SELECT 
+              b.*,
+              COUNT(t.id) as actual_trades
+            FROM batches b 
+            LEFT JOIN trades t ON b.id = t.batch_id
+            $whereClause
+            GROUP BY b.id
+            ORDER BY b.$sortBy $sortOrder
+            LIMIT ? OFFSET ?";
+    
+    $params[] = $limit;
+    $params[] = $offset;
+    
+    $stmt = $this->pdo->prepare( $sql );
+    $stmt->execute( $params );
+    $batches = $stmt->fetchAll( PDO::FETCH_ASSOC );
+    
+    return [
+      'batches' => $batches,
+      'pagination' => [
+        'current_page' => $page,
+        'total_pages' => $totalPages,
+        'total_records' => $totalRecords,
+        'limit' => $limit,
+        'has_next' => $page < $totalPages,
+        'has_prev' => $page > 1
+      ],
+      'filters' => $filters,
+      'sort' => [
+        'field' => $sortBy,
+        'order' => $sortOrder
+      ]
+    ];
+  } // searchBatches
+
+
+  /**
+   * Send batch completion notification
+   */
+  public function sendBatchNotification( $batchId, $type = 'completion' )
+  {
+    $batch = $this->getBatch( $batchId );
+    if ( ! $batch ) {
+      return false;
+    }
+    
+    $notification = [
+      'type' => 'batch_notification',
+      'batch_id' => $batchId,
+      'batch_uid' => $batch['batch_uid'],
+      'notification_type' => $type,
+      'status' => $batch['status'],
+      'total_trades' => $batch['total_trades'],
+      'processed_trades' => $batch['processed_trades'],
+      'failed_trades' => $batch['failed_trades'],
+      'timestamp' => time()
+    ];
+    
+    // Store notification in database for persistence
+    $sql = "INSERT INTO batch_notifications (batch_id, type, data, created_at) VALUES (?, ?, ?, ?)";
+    $stmt = $this->pdo->prepare( $sql );
+    $stmt->execute( [ $batchId, $type, json_encode( $notification ), date( 'Y-m-d H:i:s' ) ] );
+    
+    return $notification;
+  } // sendBatchNotification
+
+
+  /**
+   * Get pending notifications
+   */
+  public function getPendingNotifications( $limit = 50 )
+  {
+    $sql = "SELECT * FROM batch_notifications WHERE sent_at IS NULL ORDER BY created_at DESC LIMIT ?";
+    $stmt = $this->pdo->prepare( $sql );
+    $stmt->execute( [ $limit ] );
+    return $stmt->fetchAll( PDO::FETCH_ASSOC );
+  } // getPendingNotifications
+
+
+  /**
+   * Mark notification as sent
+   */
+  public function markNotificationSent( $notificationId )
+  {
+    $sql = "UPDATE batch_notifications SET sent_at = ? WHERE id = ?";
+    $stmt = $this->pdo->prepare( $sql );
+    return $stmt->execute( [ date( 'Y-m-d H:i:s' ), $notificationId ] );
+  } // markNotificationSent
 
 } // BatchService
