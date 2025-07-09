@@ -60,7 +60,7 @@ class SchemaVerificationTest {
       cif_number TEXT NOT NULL UNIQUE,
       zar_account TEXT,
       usd_account TEXT,
-      spread REAL NOT NULL
+      spread INTEGER NOT NULL
     )" );
     
     $this->db->exec( "CREATE TABLE bank_accounts (

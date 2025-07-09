@@ -141,7 +141,7 @@ function createMissingTables( PDO $db ): array {
       cif_number TEXT NOT NULL UNIQUE,
       zar_account TEXT,
       usd_account TEXT,
-      spread REAL NOT NULL
+      spread INTEGER NOT NULL
     )",
     'bank_accounts' => "CREATE TABLE bank_accounts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

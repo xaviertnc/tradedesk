@@ -1,0 +1,8 @@
+---
+description: How to update PLAN.md
+globs:
+alwaysApply: true
+---
+Always update PLAN.md with your todo's or merge with existinf todo's if they already exist.
+
+Every time you complete a TODO, also check it off in PLAN.md

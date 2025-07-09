@@ -72,10 +72,20 @@ This phase implements the core server-side logic for preparing and executing a t
 3.3.2.4. [ ] - Step 4: Validate Rate: Compare the dealRate against the otc_rate and spread.
 3.3.2.5. [ ] - Update trade status based on rate validation.
 
-3.4. [ ] - Convert Spread from Percentage to Basis Points (Bips):
-3.4.1. [ ] - Update database schema for clients table to store spread as an integer (bips).
-3.4.2. [ ] - Update front-end UI (Clients and Trade tabs) to display and accept spread in bips.
-3.4.3. [ ] - Update backend logic for CSV import and rate validation to use bips.
+3.4.1. [x] - Update database schema for clients table to store spread as an integer (bips):
+  3.4.1.1. [x] - Alter the clients table to change spread from REAL to INTEGER (bips).
+  3.4.1.2. [x] - Update repair-database.php and MigrationService.php to use INTEGER for spread.
+  3.4.1.3. [x] - Update schema verification and migration scripts for bips.
+
+3.4.2. [>] - Update front-end UI (Clients and Trade tabs) to display and accept spread in bips:
+  3.4.2.1. [ ] - Update client form and table to use integer input for spread (bips).
+  3.4.2.2. [ ] - Update all display and CRUD logic to show/save spread as bips.
+  3.4.2.3. [ ] - Update table headers/labels to clarify 'Spread (Bips)'.
+
+3.4.3. [ ] - Update backend logic for CSV import and rate validation to use bips:
+  3.4.3.1. [ ] - Update CSV import/export logic to expect integer bips. (NEXT)
+  3.4.3.2. [x] - Update documentation/specs (PLAN.md, PRD.md, DEALS.csv) to clarify spread is in bips.
+  3.4.3.3. [x] - Remove any code that converts between percent and bips.
 
 ✅ Phase 4: Backend Logic - Booking & Confirmation
 This phase finalizes the trade by booking it and confirming its status.

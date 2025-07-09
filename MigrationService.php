@@ -1,4 +1,19 @@
 <?php
+/**
+ * MigrationService.php
+ *
+ * FX Batch Trader - 28 Jun 2025 ( Start Date )
+ *
+ * Purpose: Handles database migrations and schema verification for FX Batch Trader.
+ *
+ * @package FXBatchTrader
+ *
+ * @author Your Name <email@domain.com>
+ *
+ * Last 3 version commits:
+ * @version 1.0 - INIT - 28 Jun 2025 - Initial commit
+ * @version x.x - FT|UPD - 29 Jun 2025 - Migrate spread to integer bips
+ */
 // php/services/MigrationService.php
 
 class MigrationService {

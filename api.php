@@ -1,4 +1,19 @@
 <?php
+/**
+ * api.php
+ *
+ * FX Batch Trader API - 28 Jun 2025 ( Start Date )
+ *
+ * Purpose: Main API controller for FX Batch Trader, handling all CRUD and batch trading actions.
+ *
+ * @package FXBatchTrader
+ *
+ * @author Your Name <email@domain.com>
+ *
+ * Last 3 version commits:
+ * @version 1.0 - INIT - 28 Jun 2025 - Initial commit
+ * @version x.x - FT|UPD - 29 Jun 2025 - Migrate spread to integer bips
+ */
 // api.php - Main backend handler
 
 // --- Error Reporting (for development) ---
@@ -70,7 +85,7 @@ function getDbConnection() {
     cif_number TEXT NOT NULL UNIQUE,
     zar_account TEXT,
     usd_account TEXT,
-    spread REAL NOT NULL
+    spread INTEGER NOT NULL
   )" );
 
   // Bank Accounts Table
@@ -193,11 +208,13 @@ function handleSaveClient( $db ) {
   $usd = $_POST['client-usd'] ?? '';
   $spread = $_POST['client-spread'] ?? 0;
 
-  if ( empty( $name ) || empty( $cif ) || !is_numeric( $spread ) ) {
+  // Ensure spread is integer (bips)
+  if ( empty( $name ) || empty( $cif ) || !is_numeric( $spread ) || intval($spread) != $spread ) {
     http_response_code( 400 );
-    echo json_encode( [ 'success' => false, 'message' => 'Invalid data provided.' ] );
+    echo json_encode( [ 'success' => false, 'message' => 'Invalid data provided. Spread must be an integer (bips).' ] );
     return;
   }
+  $spread = intval($spread);
 
   try {
     if ( $id ) { // Update
@@ -263,38 +280,30 @@ function handleImportClients( $db ) {
   $importedCount = 0;
   $db->beginTransaction();
   try {
-    $insertSql = "INSERT INTO clients (name, cif_number, spread) VALUES (:name, :cif, :spread)";
-    $updateSql = "UPDATE clients SET name = :name, spread = :spread WHERE cif_number = :cif";
-    
-    $insertStmt = $db->prepare( $insertSql );
-    $updateStmt = $db->prepare( $updateSql );
-    $selectStmt = $db->prepare( "SELECT id FROM clients WHERE cif_number = ?" );
-
     while ( ( $row = fgetcsv( $handle ) ) !== false ) {
-      $name = $row[$clientIndex];
-      $cif = $row[$cifIndex];
-      $spread = (float)$row[$spreadIndex] / 100;
-
-      if ( empty( $name ) || empty( $cif ) || !is_numeric( $spread ) ) continue;
-      
-      $selectStmt->execute( [ $cif ] );
-      $exists = $selectStmt->fetch();
-
-      if ( $exists ) {
-        $updateStmt->execute( [ ':name' => $name, ':spread' => $spread, ':cif' => $cif ] );
-      } else {
+      $name = $row[$clientIndex] ?? '';
+      $cif = $row[$cifIndex] ?? '';
+      $spread = $row[$spreadIndex] ?? '';
+      // Expect spread as integer bips
+      if ( !is_numeric( $spread ) || intval($spread) != $spread ) continue;
+      $spread = intval($spread);
+      if ( empty( $name ) || empty( $cif ) ) continue;
+      // Upsert logic
+      $updateSql = "UPDATE clients SET name = :name, spread = :spread WHERE cif_number = :cif";
+      $insertSql = "INSERT INTO clients (name, cif_number, spread) VALUES (:name, :cif, :spread)";
+      $updateStmt = $db->prepare( $updateSql );
+      $insertStmt = $db->prepare( $insertSql );
+      $updateStmt->execute( [ ':name' => $name, ':spread' => $spread, ':cif' => $cif ] );
+      if ( $updateStmt->rowCount() === 0 ) {
         $insertStmt->execute( [ ':name' => $name, ':cif' => $cif, ':spread' => $spread ] );
       }
       $importedCount++;
     }
     $db->commit();
-    echo json_encode( [ 'success' => true, 'imported_count' => $importedCount ] );
-
+    echo json_encode( [ 'success' => true, 'imported' => $importedCount ] );
   } catch ( Exception $e ) {
     $db->rollBack();
     throw $e;
-  } finally {
-    fclose( $handle );
   }
 }
 
